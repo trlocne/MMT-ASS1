@@ -1,21 +1,11 @@
 import React, { useState, useEffect } from 'react';
+import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import './App.css';
 import ServerSidebar from './components/Sidebar/ServerSidebar';
 import ChannelSidebar from './components/Sidebar/ChannelSidebar';
 import MainContent from './components/MainContent/MainContent';
-
-const initialMessages = {
-  'chat': [
-    { user: 'Alice', text: 'Hello everyone!', timestamp: '10:00 AM' },
-    { user: 'Bob', text: 'Hi Alice!', timestamp: '10:01 AM' },
-  ],
-  'import-file': [
-    { user: 'Charlie', text: 'How do I import files?', timestamp: '10:05 AM' },
-  ],
-  'Meet 1': [],
-  'Meet 2': [],
-  'Meet 3': [],
-};
+import Login from './components/Auth/Login';
+import Signup from './components/Auth/Signup';
 
 export default function App() {
   const [currentChannel, setCurrentChannel] = useState('chat');
@@ -35,20 +25,33 @@ export default function App() {
     }));
   };
 
-  return (
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+
+  const MainApp = () => (
     <div className="bg-gray-900 text-gray-100 h-screen flex overflow-hidden">
       <ServerSidebar />
-
       <ChannelSidebar
         currentChannel={currentChannel}
         setCurrentChannel={setCurrentChannel}
       />
-
       <MainContent
         currentChannel={currentChannel}
         messages={messages[currentChannel]}
         onSendMessage={handleSendMessage}
       />
     </div>
+  );
+
+  return (
+    <Router>
+      <Routes>
+        <Route path="/login" element={!isAuthenticated ? <Login /> : <Navigate to="/" />} />
+        <Route path="/signup" element={!isAuthenticated ? <Signup /> : <Navigate to="/" />} />
+        <Route
+          path="/*"
+          element={isAuthenticated ? <MainApp /> : <Navigate to="/login" />}
+        />
+      </Routes>
+    </Router>
   );
 }
