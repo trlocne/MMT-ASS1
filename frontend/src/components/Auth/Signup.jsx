@@ -1,7 +1,11 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useContext } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
+import { GlobalContext } from '../../context/index.jsx';
 
 export default function Signup() {
+  const navigate = useNavigate();
+  const { registerUser } = useContext(GlobalContext);
+
   const [formData, setFormData] = useState({
     username: '',
     email: '',
@@ -31,30 +35,39 @@ export default function Signup() {
     } else if (formData.username.length < 3) {
       newErrors.username = 'Username must be at least 3 characters';
     }
+
     if (!formData.email) {
       newErrors.email = 'Email is required';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = 'Email is invalid';
     }
+
     if (!formData.password) {
       newErrors.password = 'Password is required';
     } else if (formData.password.length < 6) {
       newErrors.password = 'Password must be at least 6 characters';
     }
+
     if (!formData.confirmPassword) {
       newErrors.confirmPassword = 'Please confirm your password';
     } else if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Passwords do not match';
     }
+
     return newErrors;
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     const newErrors = validateForm();
+
     if (Object.keys(newErrors).length === 0) {
-      // Handle signup logic here
-      console.log('Form submitted:', formData);
+      const result = registerUser(formData);
+      if (result.success) {
+        navigate('/login');
+      } else {
+        setErrors({ email: result.message });
+      }
     } else {
       setErrors(newErrors);
     }
@@ -70,70 +83,42 @@ export default function Signup() {
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm space-y-4">
-            <div>
-              <label htmlFor="username" className="sr-only">Username</label>
-              <input
-                id="username"
-                name="username"
-                type="text"
-                autoComplete="username"
-                value={formData.username}
-                onChange={handleChange}
-                className={`appearance-none rounded-lg relative block w-full px-3 py-2 border ${errors.username ? 'border-red-500' : 'border-gray-600'} bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm`}
-                placeholder="Username"
-              />
-              {errors.username && (
-                <p className="mt-2 text-sm text-red-500">{errors.username}</p>
-              )}
-            </div>
-            <div>
-              <label htmlFor="email" className="sr-only">Email address</label>
-              <input
-                id="email"
-                name="email"
-                type="email"
-                autoComplete="email"
-                value={formData.email}
-                onChange={handleChange}
-                className={`appearance-none rounded-lg relative block w-full px-3 py-2 border ${errors.email ? 'border-red-500' : 'border-gray-600'} bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm`}
-                placeholder="Email address"
-              />
-              {errors.email && (
-                <p className="mt-2 text-sm text-red-500">{errors.email}</p>
-              )}
-            </div>
-            <div>
-              <label htmlFor="password" className="sr-only">Password</label>
-              <input
-                id="password"
-                name="password"
-                type="password"
-                autoComplete="new-password"
-                value={formData.password}
-                onChange={handleChange}
-                className={`appearance-none rounded-lg relative block w-full px-3 py-2 border ${errors.password ? 'border-red-500' : 'border-gray-600'} bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm`}
-                placeholder="Password"
-              />
-              {errors.password && (
-                <p className="mt-2 text-sm text-red-500">{errors.password}</p>
-              )}
-            </div>
-            <div>
-              <label htmlFor="confirmPassword" className="sr-only">Confirm Password</label>
-              <input
-                id="confirmPassword"
-                name="confirmPassword"
-                type="password"
-                autoComplete="new-password"
-                value={formData.confirmPassword}
-                onChange={handleChange}
-                className={`appearance-none rounded-lg relative block w-full px-3 py-2 border ${errors.confirmPassword ? 'border-red-500' : 'border-gray-600'} bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm`}
-                placeholder="Confirm Password"
-              />
-              {errors.confirmPassword && (
-                <p className="mt-2 text-sm text-red-500">{errors.confirmPassword}</p>
-              )}
-            </div>
+            <InputField
+              id="username"
+              name="username"
+              type="text"
+              value={formData.username}
+              onChange={handleChange}
+              error={errors.username}
+              placeholder="Username"
+            />
+            <InputField
+              id="email"
+              name="email"
+              type="email"
+              value={formData.email}
+              onChange={handleChange}
+              error={errors.email}
+              placeholder="Email address"
+            />
+            <InputField
+              id="password"
+              name="password"
+              type="password"
+              value={formData.password}
+              onChange={handleChange}
+              error={errors.password}
+              placeholder="Password"
+            />
+            <InputField
+              id="confirmPassword"
+              name="confirmPassword"
+              type="password"
+              value={formData.confirmPassword}
+              onChange={handleChange}
+              error={errors.confirmPassword}
+              placeholder="Confirm Password"
+            />
           </div>
 
           <div>
@@ -153,6 +138,27 @@ export default function Signup() {
           </div>
         </form>
       </div>
+    </div>
+  );
+}
+
+function InputField({ id, name, type, value, onChange, error, placeholder }) {
+  return (
+    <div>
+      <label htmlFor={id} className="sr-only">{placeholder}</label>
+      <input
+        id={id}
+        name={name}
+        type={type}
+        autoComplete={name}
+        value={value}
+        onChange={onChange}
+        className={`appearance-none rounded-lg relative block w-full px-3 py-2 border ${
+          error ? 'border-red-500' : 'border-gray-600'
+        } bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm`}
+        placeholder={placeholder}
+      />
+      {error && <p className="mt-2 text-sm text-red-500">{error}</p>}
     </div>
   );
 }

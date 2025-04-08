@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useContext } from 'react';
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import './App.css';
 import ServerSidebar from './components/Sidebar/ServerSidebar';
@@ -6,12 +6,13 @@ import ChannelSidebar from './components/Sidebar/ChannelSidebar';
 import MainContent from './components/MainContent/MainContent';
 import Login from './components/Auth/Login';
 import Signup from './components/Auth/Signup';
+import { GlobalContext } from './context';
 
 export default function App() {
   const [currentChannel, setCurrentChannel] = useState('chat');
   const [messages, setMessages] = useState(() => {
     const savedMessages = localStorage.getItem('messages');
-    return savedMessages ? JSON.parse(savedMessages) : initialMessages;
+    return savedMessages ? JSON.parse(savedMessages) : {};
   });
 
   useEffect(() => {
@@ -25,7 +26,6 @@ export default function App() {
     }));
   };
 
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
 
   const MainApp = () => (
     <div className="bg-gray-900 text-gray-100 h-screen flex overflow-hidden">
@@ -41,6 +41,8 @@ export default function App() {
       />
     </div>
   );
+
+  const {isAuthenticated} = useContext(GlobalContext);
 
   return (
     <Router>

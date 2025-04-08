@@ -1,12 +1,16 @@
-import React, { useState } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useContext } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { GlobalContext } from '../../context/index.jsx';
 
 export default function Login() {
+  const navigate = useNavigate();
+  const { loginUser } = useContext(GlobalContext);
+
   const [formData, setFormData] = useState({
     email: '',
     password: ''
   });
+
   const [errors, setErrors] = useState({});
 
   const handleChange = (e) => {
@@ -15,6 +19,7 @@ export default function Login() {
       ...prev,
       [name]: value
     }));
+
     if (errors[name]) {
       setErrors(prev => ({
         ...prev,
@@ -30,19 +35,28 @@ export default function Login() {
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = 'Email is invalid';
     }
+
     if (!formData.password) {
       newErrors.password = 'Password is required';
     } else if (formData.password.length < 6) {
       newErrors.password = 'Password must be at least 6 characters';
     }
+
     return newErrors;
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
     const newErrors = validateForm();
+
     if (Object.keys(newErrors).length === 0) {
-      console.log('Form submitted:', formData);
+      const result = loginUser(formData.email, formData.password);
+      if (result.success) {
+        navigate('/');
+        alert('Login successful!');
+      } else {
+        setErrors({ email: result.message });
+      }
     } else {
       setErrors(newErrors);
     }
@@ -67,7 +81,9 @@ export default function Login() {
                 autoComplete="email"
                 value={formData.email}
                 onChange={handleChange}
-                className={`appearance-none rounded-lg relative block w-full px-3 py-2 border ${errors.email ? 'border-red-500' : 'border-gray-600'} bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm`}
+                className={`appearance-none rounded-lg relative block w-full px-3 py-2 border ${
+                  errors.email ? 'border-red-500' : 'border-gray-600'
+                } bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm`}
                 placeholder="Email address"
               />
               {errors.email && (
@@ -83,7 +99,9 @@ export default function Login() {
                 autoComplete="current-password"
                 value={formData.password}
                 onChange={handleChange}
-                className={`appearance-none rounded-lg relative block w-full px-3 py-2 border ${errors.password ? 'border-red-500' : 'border-gray-600'} bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm`}
+                className={`appearance-none rounded-lg relative block w-full px-3 py-2 border ${
+                  errors.password ? 'border-red-500' : 'border-gray-600'
+                } bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm`}
                 placeholder="Password"
               />
               {errors.password && (

@@ -5,6 +5,11 @@ export const GlobalContext = createContext();
 
 export default function GlobalState({ children }) {
   const [currentChannel, setCurrentChannel] = useState('chat');
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [registeredUsers, setRegisteredUsers] = useState(() => {
+    const savedUsers = localStorage.getItem('registeredUsers');
+    return savedUsers ? JSON.parse(savedUsers) : [];
+  });
   const [messages, setMessages] = useState(() => {
     const savedMessages = localStorage.getItem('messages');
     return savedMessages
@@ -23,6 +28,7 @@ export default function GlobalState({ children }) {
   const [isMicrophoneOn, setIsMicrophoneOn] = useState(true);
   const [isHeadphonesOn, setIsHeadphonesOn] = useState(true);
   const [username, setUserName] = useState('abc123');
+
 
   const [servers, setServers] = useState([
     {
@@ -86,6 +92,29 @@ export default function GlobalState({ children }) {
     localStorage.setItem('messages', JSON.stringify(messages));
   }, [messages]);
 
+  useEffect(() => {
+    localStorage.setItem('registeredUsers', JSON.stringify(registeredUsers));
+  }, [registeredUsers]);
+
+  const registerUser = (userData) => {
+    const userExists = registeredUsers.some(user => user.email === userData.email);
+    if (userExists) {
+      return { success: false, message: 'Email already registered' };
+    }
+    setRegisteredUsers(prev => [...prev, userData]);
+    return { success: true, message: 'Registration successful' };
+  };
+
+  const loginUser = (email, password) => {
+    const user = registeredUsers.find(u => u.email === email && u.password === password);
+    if (user) {
+      setIsAuthenticated(true);
+      setUserName(user.username);
+      return { success: true, message: 'Login successful' };
+    }
+    return { success: false, message: 'Invalid credentials' };
+  };
+
   const handleSendMessage = (message) => {
     setMessages((prevMessages) => ({
       ...prevMessages,
@@ -114,6 +143,10 @@ export default function GlobalState({ children }) {
     setCurrentServer,
     addServer,
     addChannelToServer,
+    isAuthenticated,
+    setIsAuthenticated,
+    registerUser,
+    loginUser,
   };
 
   return (
