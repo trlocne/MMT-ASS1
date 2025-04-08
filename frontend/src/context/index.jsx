@@ -6,6 +6,7 @@ export const GlobalContext = createContext();
 export default function GlobalState({ children }) {
   const [currentChannel, setCurrentChannel] = useState('chat');
   const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [isVideoOn, setIsVideoOn] = useState(false);
   const [registeredUsers, setRegisteredUsers] = useState(() => {
     const savedUsers = localStorage.getItem('registeredUsers');
     return savedUsers ? JSON.parse(savedUsers) : [];
@@ -115,6 +116,13 @@ export default function GlobalState({ children }) {
     return { success: false, message: 'Invalid credentials' };
   };
 
+  const participants = [
+    { name: "Duy Phương Lộc", avatar: "https://via.placeholder.com/150" },
+    { name: "John Doe", avatar: "https://via.placeholder.com/150" },
+    { name: "Alice", avatar: "https://via.placeholder.com/150" },
+    { name: "Bob", avatar: "https://via.placeholder.com/150" },
+  ];
+
   const handleSendMessage = (message) => {
     setMessages((prevMessages) => ({
       ...prevMessages,
@@ -147,6 +155,9 @@ export default function GlobalState({ children }) {
     setIsAuthenticated,
     registerUser,
     loginUser,
+    isVideoOn,
+    setIsVideoOn,
+    participants
   };
 
   return (

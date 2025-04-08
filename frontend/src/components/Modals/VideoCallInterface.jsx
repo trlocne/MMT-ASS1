@@ -12,7 +12,7 @@ import {
   // faHeadphonesSlash,
 } from '@fortawesome/free-solid-svg-icons';
 import { GlobalContext } from '../../context/index.jsx';
-import { useContext, useState } from 'react';
+import { useContext } from 'react';
 
 export default function VideoCallInterface() {
   const {
@@ -20,16 +20,12 @@ export default function VideoCallInterface() {
     setIsMicrophoneOn,
     isHeadphonesOn,
     setIsHeadphonesOn,
+    isVideoOn, 
+    setIsVideoOn,
+    participants
   } = useContext(GlobalContext);
 
-  const participants = [
-    { name: "Duy Phương Lộc", avatar: "https://via.placeholder.com/150" },
-    { name: "John Doe", avatar: "https://via.placeholder.com/150" },
-    { name: "Alice", avatar: "https://via.placeholder.com/150" },
-    { name: "Bob", avatar: "https://via.placeholder.com/150" },
-  ];
-
-  const [isVideoOn, setIsVideoOn] = useState(false);
+  
 
   return (
     <div className="flex flex-col bg-black text-white">

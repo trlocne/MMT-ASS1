@@ -1,4 +1,4 @@
-import React, { useContext, useEffect, useRef } from 'react';
+import React, { useContext, useEffect, useRef, useState } from 'react';
 import { GlobalContext } from '../../context/index.jsx';
 import VideoCallInterface from '../Modals/VideoCallInterface';
 
@@ -8,17 +8,30 @@ export default function MessagesArea({ messages }) {
   const isVoiceChannel = currentServerData?.voiceChannels.includes(currentChannel);
 
   const messagesEndRef = useRef(null);
+  const containerRef = useRef(null);
+  const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
 
-  const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
+  const handleScroll = () => {
+    if (containerRef.current) {
+      const { scrollTop, scrollHeight, clientHeight } = containerRef.current;
+      const isAtBottom = Math.abs(scrollHeight - clientHeight - scrollTop) < 10;
+      setShouldAutoScroll(isAtBottom);
+    }
   };
 
   useEffect(() => {
-    scrollToBottom();
-  }, [messages]);
+    if (shouldAutoScroll) {
+      messagesEndRef.current?.scrollIntoView();
+    }
+  }, [messages, shouldAutoScroll]);
 
   return (
-    <div id="messages-container" className="flex-1 overflow-y-auto space-y-4">
+    <div 
+      id="messages-container" 
+      className="flex-1 overflow-y-auto space-y-4"
+      ref={containerRef}
+      onScroll={handleScroll}
+    >
       {isVoiceChannel ? (
         <div className="sticky top-0 z-10">
           <VideoCallInterface />
