@@ -1,0 +1,1024 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Discord Clone with Video Call</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Custom scrollbar */
+        ::-webkit-scrollbar {
+            width: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #2e3338;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #202225;
+            border-radius: 4px;
+        }
+        
+        /* Voice call animation */
+        @keyframes pulse {
+            0% { opacity: 0.5; }
+            50% { opacity: 1; }
+            100% { opacity: 0.5; }
+        }
+        
+        .voice-active {
+            animation: pulse 1.5s infinite;
+        }
+        
+        /* Message typing indicator */
+        .typing-indicator {
+            display: flex;
+            padding: 10px 15px;
+            background: #2f3136;
+            border-radius: 20px;
+            width: fit-content;
+        }
+        
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            background-color: #dcddde;
+            border-radius: 50%;
+            margin: 0 2px;
+            animation: typingAnimation 1.4s infinite ease-in-out;
+        }
+        
+        .typing-dot:nth-child(1) {
+            animation-delay: 0s;
+        }
+        
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+        
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+        
+        @keyframes typingAnimation {
+            0%, 60%, 100% { transform: translateY(0); }
+            30% { transform: translateY(-5px); }
+        }
+        
+        /* Video call styles */
+        .video-container {
+            position: relative;
+            width: 100%;
+            height: 100%;
+            background-color: #1e1f22;
+            border-radius: 8px;
+            overflow: hidden;
+        }
+        
+        .video-controls {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            display: flex;
+            justify-content: center;
+            gap: 20px;
+            z-index: 10;
+        }
+        
+        .video-control-btn {
+            width: 48px;
+            height: 48px;
+            border-radius: 50%;
+            background-color: #2b2d31;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: white;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .video-control-btn:hover {
+            background-color: #3b3d42;
+        }
+        
+        .video-control-btn.end-call {
+            background-color: #ed4245;
+        }
+        
+        .video-control-btn.end-call:hover {
+            background-color: #ff5555;
+        }
+        
+        .participant-video {
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }
+        
+        .self-video {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            width: 160px;
+            height: 90px;
+            border-radius: 8px;
+            border: 2px solid #4f545c;
+            object-fit: cover;
+            z-index: 5;
+        }
+        
+        .participant-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 10px;
+            padding: 20px;
+            height: calc(100% - 60px);
+            overflow-y: auto;
+        }
+        
+        .participant-item {
+            position: relative;
+            background-color: #2f3136;
+            border-radius: 8px;
+            overflow: hidden;
+            aspect-ratio: 16/9;
+        }
+        
+        .participant-info {
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            right: 0;
+            background: linear-gradient(transparent, rgba(0,0,0,0.7));
+            padding: 10px;
+            color: white;
+            display: flex;
+            align-items: center;
+        }
+        
+        .participant-avatar {
+            width: 32px;
+            height: 32px;
+            border-radius: 50%;
+            margin-right: 10px;
+            background-color: #5865f2;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-weight: bold;
+        }
+        
+        .video-call-header {
+            height: 60px;
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 0 20px;
+            background-color: #2b2d31;
+            border-bottom: 1px solid #1e1f22;
+        }
+        
+        .call-duration {
+            color: #b5bac1;
+            font-size: 14px;
+        }
+        
+        .call-actions {
+            display: flex;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body class="bg-gray-900 text-gray-100 h-screen flex overflow-hidden">
+    <!-- Server sidebar -->
+    <div class="w-16 bg-gray-900 flex flex-col items-center py-3 space-y-2 overflow-y-auto">
+        <div class="w-12 h-12 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold cursor-pointer hover:rounded-2xl transition-all duration-200">
+            <i class="fab fa-discord text-2xl"></i>
+        </div>
+        <div class="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center text-white cursor-pointer hover:rounded-2xl transition-all duration-200">
+            <i class="fas fa-plus"></i>
+        </div>
+        
+        <div class="border-t border-gray-700 w-8 mx-auto my-2"></div>
+        
+        <div class="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center text-green-500 cursor-pointer hover:rounded-2xl transition-all duration-200">
+            <i class="fas fa-gamepad"></i>
+        </div>
+        <div class="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center text-purple-500 cursor-pointer hover:rounded-2xl transition-all duration-200">
+            <i class="fas fa-compass"></i>
+        </div>
+        <div class="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center text-yellow-500 cursor-pointer hover:rounded-2xl transition-all duration-200">
+            <i class="fas fa-download"></i>
+        </div>
+    </div>
+    
+    <!-- Channel sidebar -->
+    <div class="w-60 bg-gray-800 flex flex-col">
+        <div class="h-12 border-b border-gray-900 flex items-center px-4 shadow-sm">
+            <h2 class="font-semibold">Discord Server</h2>
+        </div>
+        
+        <div class="flex-1 overflow-y-auto">
+            <div class="px-2 pt-3">
+                <div class="text-xs font-semibold text-gray-400 px-2 mb-1 flex justify-between items-center">
+                    <span>VOICE CHANNELS</span>
+                    <button class="text-gray-400 hover:text-white" onclick="createVoiceChannel()">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+                <div class="space-y-1">
+                    <div class="flex items-center px-2 py-1 rounded hover:bg-gray-700 cursor-pointer" onclick="joinVoiceChannel('General')">
+                        <i class="fas fa-volume-up text-gray-400 mr-2"></i>
+                        <span>General</span>
+                    </div>
+                    <div class="flex items-center px-2 py-1 rounded hover:bg-gray-700 cursor-pointer" onclick="joinVoiceChannel('Gaming')">
+                        <i class="fas fa-volume-up text-gray-400 mr-2"></i>
+                        <span>Gaming</span>
+                    </div>
+                    <div class="flex items-center px-2 py-1 rounded hover:bg-gray-700 cursor-pointer" onclick="joinVoiceChannel('Music')">
+                        <i class="fas fa-volume-up text-gray-400 mr-2"></i>
+                        <span>Music</span>
+                    </div>
+                </div>
+                
+                <div class="text-xs font-semibold text-gray-400 px-2 mt-4 mb-1 flex justify-between items-center">
+                    <span>VIDEO CHANNELS</span>
+                    <button class="text-gray-400 hover:text-white" onclick="createVideoChannel()">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+                <div class="space-y-1">
+                    <div class="flex items-center px-2 py-1 rounded hover:bg-gray-700 cursor-pointer" onclick="joinVideoChannel('Video Chat')">
+                        <i class="fas fa-video text-gray-400 mr-2"></i>
+                        <span>Video Chat</span>
+                    </div>
+                    <div class="flex items-center px-2 py-1 rounded hover:bg-gray-700 cursor-pointer" onclick="joinVideoChannel('Streaming')">
+                        <i class="fas fa-video text-gray-400 mr-2"></i>
+                        <span>Streaming</span>
+                    </div>
+                </div>
+                
+                <div class="text-xs font-semibold text-gray-400 px-2 mt-4 mb-1 flex justify-between items-center">
+                    <span>TEXT CHANNELS</span>
+                    <button class="text-gray-400 hover:text-white" onclick="createTextChannel()">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                </div>
+                <div class="space-y-1">
+                    <div class="flex items-center px-2 py-1 rounded hover:bg-gray-700 cursor-pointer" onclick="openChannel('general-chat')">
+                        <i class="fas fa-hashtag text-gray-400 mr-2"></i>
+                        <span>general-chat</span>
+                    </div>
+                    <div class="flex items-center px-2 py-1 rounded hover:bg-gray-700 cursor-pointer" onclick="openChannel('memes')">
+                        <i class="fas fa-hashtag text-gray-400 mr-2"></i>
+                        <span>memes</span>
+                    </div>
+                    <div class="flex items-center px-2 py-1 rounded hover:bg-gray-700 cursor-pointer" onclick="openChannel('help')">
+                        <i class="fas fa-hashtag text-gray-400 mr-2"></i>
+                        <span>help</span>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <div class="h-14 bg-gray-800 px-2 flex items-center">
+            <div class="flex items-center space-x-2 p-1 rounded hover:bg-gray-700 cursor-pointer w-full">
+                <div class="w-8 h-8 rounded-full bg-indigo-500 flex items-center justify-center text-white font-semibold">U</div>
+                <div class="flex-1">
+                    <div class="text-sm font-medium">User123</div>
+                    <div class="text-xs text-gray-400">#1234</div>
+                </div>
+                <div class="flex space-x-1">
+                    <button class="text-gray-400 hover:text-white">
+                        <i class="fas fa-microphone"></i>
+                    </button>
+                    <button class="text-gray-400 hover:text-white">
+                        <i class="fas fa-headphones"></i>
+                    </button>
+                    <button class="text-gray-400 hover:text-white">
+                        <i class="fas fa-cog"></i>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Main content area -->
+    <div class="flex-1 flex flex-col bg-gray-700">
+        <!-- Channel header -->
+        <div class="h-12 border-b border-gray-900 flex items-center px-4 shadow-sm">
+            <i class="fas fa-hashtag text-gray-400 mr-2"></i>
+            <h2 class="font-semibold">general-chat</h2>
+            <div class="ml-auto flex items-center space-x-4">
+                <button class="text-gray-400 hover:text-white">
+                    <i class="fas fa-search"></i>
+                </button>
+                <button class="text-gray-400 hover:text-white">
+                    <i class="fas fa-inbox"></i>
+                </button>
+                <button class="text-gray-400 hover:text-white">
+                    <i class="fas fa-question-circle"></i>
+                </button>
+            </div>
+        </div>
+        
+        <!-- Messages area -->
+        <div id="messages-container" class="flex-1 overflow-y-auto p-4 space-y-4">
+            <!-- Welcome message -->
+            <div class="flex items-start space-x-4">
+                <div class="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center text-white font-semibold">D</div>
+                <div>
+                    <div class="flex items-baseline space-x-2">
+                        <span class="font-semibold">Discord Bot</span>
+                        <span class="text-xs text-gray-400">Today at 12:00 PM</span>
+                    </div>
+                    <p class="text-gray-100">Welcome to #general-chat! Start chatting with your friends.</p>
+                </div>
+            </div>
+            
+            <!-- Sample messages -->
+            <div class="flex items-start space-x-4">
+                <div class="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white font-semibold">J</div>
+                <div>
+                    <div class="flex items-baseline space-x-2">
+                        <span class="font-semibold">JohnDoe</span>
+                        <span class="text-xs text-gray-400">Today at 12:05 PM</span>
+                    </div>
+                    <p class="text-gray-100">Hey everyone! How's it going?</p>
+                </div>
+            </div>
+            
+            <div class="flex items-start space-x-4">
+                <div class="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold">A</div>
+                <div>
+                    <div class="flex items-baseline space-x-2">
+                        <span class="font-semibold">Alice</span>
+                        <span class="text-xs text-gray-400">Today at 12:07 PM</span>
+                    </div>
+                    <p class="text-gray-100">Pretty good! Just joined the voice channel if anyone wants to chat.</p>
+                </div>
+            </div>
+            
+            <!-- Video call invitation -->
+            <div class="flex items-start space-x-4">
+                <div class="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center text-white font-semibold">B</div>
+                <div>
+                    <div class="flex items-baseline space-x-2">
+                        <span class="font-semibold">Bob</span>
+                        <span class="text-xs text-gray-400">Today at 12:10 PM</span>
+                    </div>
+                    <p class="text-gray-100 mb-2">Let's have a video call in the Video Chat channel!</p>
+                    <div class="bg-gray-800 rounded-lg p-3 max-w-md">
+                        <div class="flex items-center mb-2">
+                            <i class="fas fa-video text-gray-400 mr-2"></i>
+                            <span class="font-medium">Video Chat</span>
+                        </div>
+                        <div class="flex space-x-2">
+                            <button onclick="joinVideoChannel('Video Chat')" class="px-3 py-1 bg-green-600 text-white rounded hover:bg-green-700">
+                                Join Video Call
+                            </button>
+                            <button class="px-3 py-1 bg-gray-600 text-white rounded hover:bg-gray-700">
+                                Decline
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+            
+            <!-- Typing indicator -->
+            <div id="typing-indicator" class="hidden">
+                <div class="flex items-start space-x-4">
+                    <div class="w-10 h-10 rounded-full bg-purple-500 flex items-center justify-center text-white font-semibold">B</div>
+                    <div>
+                        <div class="typing-indicator">
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                            <div class="typing-dot"></div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+        
+        <!-- Message input -->
+        <div class="p-4">
+            <div class="bg-gray-600 rounded-lg px-4 py-2">
+                <div class="flex items-center">
+                    <button class="text-gray-400 hover:text-white mr-2">
+                        <i class="fas fa-plus"></i>
+                    </button>
+                    <input 
+                        id="message-input" 
+                        type="text" 
+                        placeholder="Message #general-chat" 
+                        class="bg-transparent flex-1 outline-none text-gray-100 placeholder-gray-400"
+                        onkeydown="handleMessageInput(event)"
+                    >
+                    <div class="flex space-x-2 ml-2">
+                        <button class="text-gray-400 hover:text-white">
+                            <i class="fas fa-gift"></i>
+                        </button>
+                        <button class="text-gray-400 hover:text-white">
+                            <i class="fas fa-grin"></i>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Voice call modal -->
+    <div id="voice-call-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-lg w-96 p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-semibold">Voice Channel</h3>
+                <button onclick="closeVoiceCallModal()" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div id="voice-channel-name" class="text-lg font-medium mb-6 text-center">General</div>
+            
+            <div class="space-y-4 mb-6">
+                <div class="flex items-center justify-between p-3 bg-gray-700 rounded-lg">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center text-white font-semibold">U</div>
+                        <span>User123</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <button class="w-8 h-8 rounded-full bg-red-500 flex items-center justify-center text-white">
+                            <i class="fas fa-phone-slash"></i>
+                        </button>
+                    </div>
+                </div>
+                
+                <div class="flex items-center justify-between p-3 bg-gray-700 rounded-lg">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center text-white font-semibold">J</div>
+                        <span>JohnDoe</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <div class="w-6 h-6 rounded-full bg-green-500 voice-active"></div>
+                        <span class="text-sm text-gray-400">Speaking</span>
+                    </div>
+                </div>
+                
+                <div class="flex items-center justify-between p-3 bg-gray-700 rounded-lg">
+                    <div class="flex items-center space-x-3">
+                        <div class="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center text-white font-semibold">A</div>
+                        <span>Alice</span>
+                    </div>
+                    <div class="flex items-center space-x-2">
+                        <div class="w-6 h-6 rounded-full bg-gray-500"></div>
+                        <span class="text-sm text-gray-400">Connected</span>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="flex justify-center space-x-4">
+                <button class="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center text-white hover:bg-gray-600">
+                    <i class="fas fa-microphone-slash"></i>
+                </button>
+                <button class="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center text-white hover:bg-gray-600">
+                    <i class="fas fa-headphones-slash"></i>
+                </button>
+                <button class="w-12 h-12 rounded-full bg-red-500 flex items-center justify-center text-white hover:bg-red-600" onclick="leaveVoiceChannel()">
+                    <i class="fas fa-phone-slash"></i>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Video call modal -->
+    <div id="video-call-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-lg w-full h-full max-w-6xl flex flex-col">
+            <div class="video-call-header">
+                <div class="flex items-center">
+                    <i class="fas fa-video text-gray-400 mr-2"></i>
+                    <span id="video-channel-name" class="font-semibold">Video Chat</span>
+                </div>
+                <div class="call-duration" id="call-duration">00:00</div>
+                <div class="call-actions">
+                    <button class="text-gray-400 hover:text-white" onclick="toggleScreenShare()">
+                        <i class="fas fa-desktop"></i>
+                    </button>
+                    <button class="text-gray-400 hover:text-white" onclick="toggleVideo()">
+                        <i class="fas fa-video"></i>
+                    </button>
+                    <button class="text-gray-400 hover:text-white" onclick="toggleMute()">
+                        <i class="fas fa-microphone"></i>
+                    </button>
+                    <button class="text-red-500 hover:text-red-400 ml-4" onclick="leaveVideoChannel()">
+                        <i class="fas fa-phone-slash"></i>
+                    </button>
+                </div>
+            </div>
+            
+            <div class="participant-grid" id="video-grid">
+                <!-- Participants will be added here dynamically -->
+                <div class="participant-item">
+                    <div class="video-container">
+                        <video class="participant-video" autoplay playsinline></video>
+                        <div class="participant-info">
+                            <div class="participant-avatar">U</div>
+                            <span>User123 (You)</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="participant-item">
+                    <div class="video-container">
+                        <video class="participant-video" autoplay playsinline></video>
+                        <div class="participant-info">
+                            <div class="participant-avatar">J</div>
+                            <span>JohnDoe</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="participant-item">
+                    <div class="video-container">
+                        <video class="participant-video" autoplay playsinline></video>
+                        <div class="participant-info">
+                            <div class="participant-avatar">A</div>
+                            <span>Alice</span>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="participant-item">
+                    <div class="video-container">
+                        <video class="participant-video" autoplay playsinline></video>
+                        <div class="participant-info">
+                            <div class="participant-avatar">B</div>
+                            <span>Bob</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+    
+    <!-- Create channel modal -->
+    <div id="create-channel-modal" class="hidden fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50">
+        <div class="bg-gray-800 rounded-lg w-96 p-6">
+            <div class="flex justify-between items-center mb-4">
+                <h3 class="text-xl font-semibold" id="create-channel-title">Create Channel</h3>
+                <button onclick="closeCreateChannelModal()" class="text-gray-400 hover:text-white">
+                    <i class="fas fa-times"></i>
+                </button>
+            </div>
+            
+            <div class="mb-4">
+                <label class="block text-sm font-medium text-gray-400 mb-1">Channel Type</label>
+                <div class="flex space-x-2">
+                    <button id="text-channel-btn" class="flex-1 py-2 px-4 bg-gray-700 text-gray-300 rounded" onclick="setChannelType('text')">
+                        <i class="fas fa-hashtag mr-2"></i> Text
+                    </button>
+                    <button id="voice-channel-btn" class="flex-1 py-2 px-4 bg-gray-700 text-gray-300 rounded" onclick="setChannelType('voice')">
+                        <i class="fas fa-volume-up mr-2"></i> Voice
+                    </button>
+                    <button id="video-channel-btn" class="flex-1 py-2 px-4 bg-indigo-600 text-white rounded" onclick="setChannelType('video')">
+                        <i class="fas fa-video mr-2"></i> Video
+                    </button>
+                </div>
+            </div>
+            
+            <div class="mb-4">
+                <label for="channel-name" class="block text-sm font-medium text-gray-400 mb-1">Channel Name</label>
+                <input 
+                    type="text" 
+                    id="channel-name" 
+                    class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                    placeholder="new-channel"
+                >
+            </div>
+            
+            <div class="mb-4">
+                <label for="channel-topic" class="block text-sm font-medium text-gray-400 mb-1">Channel Topic (optional)</label>
+                <input 
+                    type="text" 
+                    id="channel-topic" 
+                    class="w-full bg-gray-700 border border-gray-600 rounded px-3 py-2 text-white focus:outline-none focus:border-indigo-500"
+                    placeholder="What's this channel about?"
+                >
+            </div>
+            
+            <div class="flex justify-end space-x-2">
+                <button onclick="closeCreateChannelModal()" class="px-4 py-2 bg-transparent text-gray-300 hover:text-white rounded">
+                    Cancel
+                </button>
+                <button onclick="createChannel()" class="px-4 py-2 bg-indigo-600 text-white rounded hover:bg-indigo-700">
+                    Create Channel
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <script>
+        // Current state
+        let currentChannel = 'general-chat';
+        let currentVoiceChannel = null;
+        let currentVideoChannel = null;
+        let channelType = 'text'; // 'text', 'voice' or 'video'
+        let typingTimeout = null;
+        let callTimer = null;
+        let callStartTime = null;
+        let isMuted = false;
+        let isVideoOff = false;
+        let isSharingScreen = false;
+        
+        // DOM elements
+        const messagesContainer = document.getElementById('messages-container');
+        const messageInput = document.getElementById('message-input');
+        const typingIndicator = document.getElementById('typing-indicator');
+        const voiceCallModal = document.getElementById('voice-call-modal');
+        const voiceChannelName = document.getElementById('voice-channel-name');
+        const videoCallModal = document.getElementById('video-call-modal');
+        const videoChannelName = document.getElementById('video-channel-name');
+        const videoGrid = document.getElementById('video-grid');
+        const callDuration = document.getElementById('call-duration');
+        const createChannelModal = document.getElementById('create-channel-modal');
+        const createChannelTitle = document.getElementById('create-channel-title');
+        const channelNameInput = document.getElementById('channel-name');
+        const textChannelBtn = document.getElementById('text-channel-btn');
+        const voiceChannelBtn = document.getElementById('voice-channel-btn');
+        const videoChannelBtn = document.getElementById('video-channel-btn');
+        
+        // Scroll to bottom of messages
+        function scrollToBottom() {
+            messagesContainer.scrollTop = messagesContainer.scrollHeight;
+        }
+        
+        // Open a text channel
+        function openChannel(channel) {
+            currentChannel = channel;
+            // In a real app, you would fetch messages for this channel
+            document.querySelector('.bg-gray-700 h2').textContent = channel;
+            scrollToBottom();
+        }
+        
+        // Join a voice channel
+        function joinVoiceChannel(channel) {
+            currentVoiceChannel = channel;
+            voiceChannelName.textContent = channel;
+            voiceCallModal.classList.remove('hidden');
+            
+            // Add user to voice channel
+            // In a real app, you would connect to WebRTC here
+        }
+        
+        // Join a video channel
+        function joinVideoChannel(channel) {
+            currentVideoChannel = channel;
+            videoChannelName.textContent = channel;
+            videoCallModal.classList.remove('hidden');
+            
+            // Start call timer
+            startCallTimer();
+            
+            // In a real app, you would connect to WebRTC video here
+            // This is just a simulation with placeholder videos
+        }
+        
+        // Leave voice channel
+        function leaveVoiceChannel() {
+            currentVoiceChannel = null;
+            voiceCallModal.classList.add('hidden');
+        }
+        
+        // Leave video channel
+        function leaveVideoChannel() {
+            currentVideoChannel = null;
+            videoCallModal.classList.add('hidden');
+            stopCallTimer();
+            
+            // In a real app, you would disconnect from WebRTC here
+        }
+        
+        // Close voice call modal
+        function closeVoiceCallModal() {
+            voiceCallModal.classList.add('hidden');
+        }
+        
+        // Start call timer
+        function startCallTimer() {
+            callStartTime = new Date();
+            callTimer = setInterval(updateCallDuration, 1000);
+        }
+        
+        // Stop call timer
+        function stopCallTimer() {
+            clearInterval(callTimer);
+            callDuration.textContent = "00:00";
+        }
+        
+        // Update call duration display
+        function updateCallDuration() {
+            const now = new Date();
+            const diff = Math.floor((now - callStartTime) / 1000);
+            const minutes = Math.floor(diff / 60).toString().padStart(2, '0');
+            const seconds = (diff % 60).toString().padStart(2, '0');
+            callDuration.textContent = `${minutes}:${seconds}`;
+        }
+        
+        // Toggle mute
+        function toggleMute() {
+            isMuted = !isMuted;
+            const micBtn = document.querySelector('.call-actions .fa-microphone');
+            if (isMuted) {
+                micBtn.classList.remove('fa-microphone');
+                micBtn.classList.add('fa-microphone-slash');
+            } else {
+                micBtn.classList.remove('fa-microphone-slash');
+                micBtn.classList.add('fa-microphone');
+            }
+        }
+        
+        // Toggle video
+        function toggleVideo() {
+            isVideoOff = !isVideoOff;
+            const videoBtn = document.querySelector('.call-actions .fa-video');
+            if (isVideoOff) {
+                videoBtn.classList.remove('fa-video');
+                videoBtn.classList.add('fa-video-slash');
+            } else {
+                videoBtn.classList.remove('fa-video-slash');
+                videoBtn.classList.add('fa-video');
+            }
+        }
+        
+        // Toggle screen share
+        function toggleScreenShare() {
+            isSharingScreen = !isSharingScreen;
+            const screenBtn = document.querySelector('.call-actions .fa-desktop');
+            if (isSharingScreen) {
+                screenBtn.classList.add('text-green-500');
+            } else {
+                screenBtn.classList.remove('text-green-500');
+            }
+        }
+        
+        // Create a new voice channel
+        function createVoiceChannel() {
+            channelType = 'voice';
+            createChannelTitle.textContent = 'Create Voice Channel';
+            textChannelBtn.classList.remove('bg-indigo-600', 'text-white');
+            textChannelBtn.classList.add('bg-gray-700', 'text-gray-300');
+            voiceChannelBtn.classList.remove('bg-gray-700', 'text-gray-300');
+            voiceChannelBtn.classList.add('bg-indigo-600', 'text-white');
+            videoChannelBtn.classList.remove('bg-indigo-600', 'text-white');
+            videoChannelBtn.classList.add('bg-gray-700', 'text-gray-300');
+            channelNameInput.placeholder = 'new-voice-channel';
+            createChannelModal.classList.remove('hidden');
+        }
+        
+        // Create a new video channel
+        function createVideoChannel() {
+            channelType = 'video';
+            createChannelTitle.textContent = 'Create Video Channel';
+            textChannelBtn.classList.remove('bg-indigo-600', 'text-white');
+            textChannelBtn.classList.add('bg-gray-700', 'text-gray-300');
+            voiceChannelBtn.classList.remove('bg-indigo-600', 'text-white');
+            voiceChannelBtn.classList.add('bg-gray-700', 'text-gray-300');
+            videoChannelBtn.classList.remove('bg-gray-700', 'text-gray-300');
+            videoChannelBtn.classList.add('bg-indigo-600', 'text-white');
+            channelNameInput.placeholder = 'new-video-channel';
+            createChannelModal.classList.remove('hidden');
+        }
+        
+        // Create a new text channel
+        function createTextChannel() {
+            channelType = 'text';
+            createChannelTitle.textContent = 'Create Text Channel';
+            textChannelBtn.classList.remove('bg-gray-700', 'text-gray-300');
+            textChannelBtn.classList.add('bg-indigo-600', 'text-white');
+            voiceChannelBtn.classList.remove('bg-indigo-600', 'text-white');
+            voiceChannelBtn.classList.add('bg-gray-700', 'text-gray-300');
+            videoChannelBtn.classList.remove('bg-indigo-600', 'text-white');
+            videoChannelBtn.classList.add('bg-gray-700', 'text-gray-300');
+            channelNameInput.placeholder = 'new-channel';
+            createChannelModal.classList.remove('hidden');
+        }
+        
+        // Set channel type
+        function setChannelType(type) {
+            channelType = type;
+            if (type === 'text') {
+                createChannelTitle.textContent = 'Create Text Channel';
+                textChannelBtn.classList.remove('bg-gray-700', 'text-gray-300');
+                textChannelBtn.classList.add('bg-indigo-600', 'text-white');
+                voiceChannelBtn.classList.remove('bg-indigo-600', 'text-white');
+                voiceChannelBtn.classList.add('bg-gray-700', 'text-gray-300');
+                videoChannelBtn.classList.remove('bg-indigo-600', 'text-white');
+                videoChannelBtn.classList.add('bg-gray-700', 'text-gray-300');
+                channelNameInput.placeholder = 'new-channel';
+            } else if (type === 'voice') {
+                createChannelTitle.textContent = 'Create Voice Channel';
+                textChannelBtn.classList.remove('bg-indigo-600', 'text-white');
+                textChannelBtn.classList.add('bg-gray-700', 'text-gray-300');
+                voiceChannelBtn.classList.remove('bg-gray-700', 'text-gray-300');
+                voiceChannelBtn.classList.add('bg-indigo-600', 'text-white');
+                videoChannelBtn.classList.remove('bg-indigo-600', 'text-white');
+                videoChannelBtn.classList.add('bg-gray-700', 'text-gray-300');
+                channelNameInput.placeholder = 'new-voice-channel';
+            } else {
+                createChannelTitle.textContent = 'Create Video Channel';
+                textChannelBtn.classList.remove('bg-indigo-600', 'text-white');
+                textChannelBtn.classList.add('bg-gray-700', 'text-gray-300');
+                voiceChannelBtn.classList.remove('bg-indigo-600', 'text-white');
+                voiceChannelBtn.classList.add('bg-gray-700', 'text-gray-300');
+                videoChannelBtn.classList.remove('bg-gray-700', 'text-gray-300');
+                videoChannelBtn.classList.add('bg-indigo-600', 'text-white');
+                channelNameInput.placeholder = 'new-video-channel';
+            }
+        }
+        
+        // Close create channel modal
+        function closeCreateChannelModal() {
+            createChannelModal.classList.add('hidden');
+        }
+        
+        // Create a new channel
+        function createChannel() {
+            const name = channelNameInput.value.trim();
+            if (!name) return;
+            
+            const topic = document.getElementById('channel-topic').value.trim();
+            
+            // In a real app, you would send this to your backend
+            console.log(`Creating ${channelType} channel:`, { name, topic });
+            
+            // Add to UI
+            let channelList;
+            if (channelType === 'text') {
+                channelList = document.querySelector('.bg-gray-800 > div:nth-child(2) > div:nth-child(5) > div');
+            } else if (channelType === 'voice') {
+                channelList = document.querySelector('.bg-gray-800 > div:nth-child(2) > div:nth-child(1) > div');
+            } else {
+                channelList = document.querySelector('.bg-gray-800 > div:nth-child(2) > div:nth-child(3) > div');
+            }
+            
+            const newChannel = document.createElement('div');
+            newChannel.className = 'flex items-center px-2 py-1 rounded hover:bg-gray-700 cursor-pointer';
+            
+            if (channelType === 'text') {
+                newChannel.onclick = () => openChannel(name);
+            } else if (channelType === 'voice') {
+                newChannel.onclick = () => joinVoiceChannel(name);
+            } else {
+                newChannel.onclick = () => joinVideoChannel(name);
+            }
+            
+            const icon = document.createElement('i');
+            if (channelType === 'text') {
+                icon.className = 'fas fa-hashtag text-gray-400 mr-2';
+            } else if (channelType === 'voice') {
+                icon.className = 'fas fa-volume-up text-gray-400 mr-2';
+            } else {
+                icon.className = 'fas fa-video text-gray-400 mr-2';
+            }
+            
+            const span = document.createElement('span');
+            span.textContent = name;
+            
+            newChannel.appendChild(icon);
+            newChannel.appendChild(span);
+            channelList.appendChild(newChannel);
+            
+            // Close modal and reset
+            closeCreateChannelModal();
+            channelNameInput.value = '';
+            document.getElementById('channel-topic').value = '';
+        }
+        
+        // Handle message input
+        function handleMessageInput(event) {
+            if (event.key === 'Enter' && messageInput.value.trim()) {
+                sendMessage(messageInput.value);
+                messageInput.value = '';
+                typingIndicator.classList.add('hidden');
+            } else {
+                // Show typing indicator
+                if (!typingIndicator.classList.contains('hidden')) {
+                    clearTimeout(typingTimeout);
+                } else {
+                    typingIndicator.classList.remove('hidden');
+                    scrollToBottom();
+                }
+                
+                // Hide after 2 seconds of inactivity
+                typingTimeout = setTimeout(() => {
+                    typingIndicator.classList.add('hidden');
+                }, 2000);
+            }
+        }
+        
+        // Send a message
+        function sendMessage(text) {
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'flex items-start space-x-4';
+            
+            const avatarDiv = document.createElement('div');
+            avatarDiv.className = 'w-10 h-10 rounded-full bg-indigo-500 flex items-center justify-center text-white font-semibold';
+            avatarDiv.textContent = 'U';
+            
+            const contentDiv = document.createElement('div');
+            
+            const metaDiv = document.createElement('div');
+            metaDiv.className = 'flex items-baseline space-x-2';
+            
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'font-semibold';
+            nameSpan.textContent = 'User123';
+            
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'text-xs text-gray-400';
+            const now = new Date();
+            timeSpan.textContent = `Today at ${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')} ${now.getHours() >= 12 ? 'PM' : 'AM'}`;
+            
+            const textP = document.createElement('p');
+            textP.className = 'text-gray-100';
+            textP.textContent = text;
+            
+            metaDiv.appendChild(nameSpan);
+            metaDiv.appendChild(timeSpan);
+            contentDiv.appendChild(metaDiv);
+            contentDiv.appendChild(textP);
+            messageDiv.appendChild(avatarDiv);
+            messageDiv.appendChild(contentDiv);
+            
+            messagesContainer.appendChild(messageDiv);
+            scrollToBottom();
+            
+            // Simulate reply after 1-3 seconds
+            setTimeout(() => {
+                simulateReply();
+            }, Math.random() * 2000 + 1000);
+        }
+        
+        // Simulate a reply from another user
+        function simulateReply() {
+            const users = [
+                { name: 'JohnDoe', color: 'bg-green-500', initial: 'J' },
+                { name: 'Alice', color: 'bg-blue-500', initial: 'A' },
+                { name: 'Bob', color: 'bg-purple-500', initial: 'B' }
+            ];
+            
+            const user = users[Math.floor(Math.random() * users.length)];
+            const replies = [
+                "Hey there!",
+                "What's up?",
+                "Nice to see you!",
+                "How are you doing?",
+                "I was just about to message you!",
+                "Did you see the latest update?",
+                "Let's join the voice channel!",
+                "Want to start a video call?"
+            ];
+            
+            const reply = replies[Math.floor(Math.random() * replies.length)];
+            
+            const messageDiv = document.createElement('div');
+            messageDiv.className = 'flex items-start space-x-4';
+            
+            const avatarDiv = document.createElement('div');
+            avatarDiv.className = `w-10 h-10 rounded-full ${user.color} flex items-center justify-center text-white font-semibold`;
+            avatarDiv.textContent = user.initial;
+            
+            const contentDiv = document.createElement('div');
+            
+            const metaDiv = document.createElement('div');
+            metaDiv.className = 'flex items-baseline space-x-2';
+            
+            const nameSpan = document.createElement('span');
+            nameSpan.className = 'font-semibold';
+            nameSpan.textContent = user.name;
+            
+            const timeSpan = document.createElement('span');
+            timeSpan.className = 'text-xs text-gray-400';
+            const now = new Date();
+            timeSpan.textContent = `Today at ${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')} ${now.getHours() >= 12 ? 'PM' : 'AM'}`;
+            
+            const textP = document.createElement('p');
+            textP.className = 'text-gray-100';
+            textP.textContent = reply;
+            
+            metaDiv.appendChild(nameSpan);
+            metaDiv.appendChild(timeSpan);
+            contentDiv.appendChild(metaDiv);
+            contentDiv.appendChild(textP);
+            messageDiv.appendChild(avatarDiv);
+            messageDiv.appendChild(contentDiv);
+            
+            messagesContainer.appendChild(messageDiv);
+            scrollToBottom();
+        }
+        
+        // Initialize
+        scrollToBottom();
+    </script>
+</body>
+</html>
