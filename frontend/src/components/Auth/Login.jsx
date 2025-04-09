@@ -1,29 +1,29 @@
-import React, { useState, useContext } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { GlobalContext } from '../../context/index.jsx';
+import React, { useState, useContext } from "react";
+import { Link, useNavigate } from "react-router-dom";
+import { GlobalContext } from "../../context/index.jsx";
 
 export default function Login() {
   const navigate = useNavigate();
   const { loginUser } = useContext(GlobalContext);
 
   const [formData, setFormData] = useState({
-    email: '',
-    password: ''
+    email: "",
+    password: "",
   });
 
   const [errors, setErrors] = useState({});
 
   const handleChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
+    setFormData((prev) => ({
       ...prev,
-      [name]: value
+      [name]: value,
     }));
 
     if (errors[name]) {
-      setErrors(prev => ({
+      setErrors((prev) => ({
         ...prev,
-        [name]: ''
+        [name]: "",
       }));
     }
   };
@@ -31,29 +31,29 @@ export default function Login() {
   const validateForm = () => {
     const newErrors = {};
     if (!formData.email) {
-      newErrors.email = 'Email is required';
+      newErrors.email = "Email is required";
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
-      newErrors.email = 'Email is invalid';
+      newErrors.email = "Email is invalid";
     }
 
     if (!formData.password) {
-      newErrors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+      newErrors.password = "Password is required";
+    } else if (formData.password.length < 3) {
+      newErrors.password = "Password must be at least 3 characters";
     }
 
     return newErrors;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const newErrors = validateForm();
 
     if (Object.keys(newErrors).length === 0) {
-      const result = loginUser(formData.email, formData.password);
+      const result = await loginUser(formData.email, formData.password);
       if (result.success) {
-        navigate('/');
-        alert('Login successful!');
+        navigate("/");
+        alert("Login successful!");
       } else {
         setErrors({ email: result.message });
       }
@@ -73,7 +73,9 @@ export default function Login() {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm space-y-4">
             <div>
-              <label htmlFor="email" className="sr-only">Email address</label>
+              <label htmlFor="email" className="sr-only">
+                Email address
+              </label>
               <input
                 id="email"
                 name="email"
@@ -82,7 +84,7 @@ export default function Login() {
                 value={formData.email}
                 onChange={handleChange}
                 className={`appearance-none rounded-lg relative block w-full px-3 py-2 border ${
-                  errors.email ? 'border-red-500' : 'border-gray-600'
+                  errors.email ? "border-red-500" : "border-gray-600"
                 } bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm`}
                 placeholder="Email address"
               />
@@ -91,7 +93,9 @@ export default function Login() {
               )}
             </div>
             <div>
-              <label htmlFor="password" className="sr-only">Password</label>
+              <label htmlFor="password" className="sr-only">
+                Password
+              </label>
               <input
                 id="password"
                 name="password"
@@ -100,7 +104,7 @@ export default function Login() {
                 value={formData.password}
                 onChange={handleChange}
                 className={`appearance-none rounded-lg relative block w-full px-3 py-2 border ${
-                  errors.password ? 'border-red-500' : 'border-gray-600'
+                  errors.password ? "border-red-500" : "border-gray-600"
                 } bg-gray-700 text-white placeholder-gray-400 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 focus:z-10 sm:text-sm`}
                 placeholder="Password"
               />
@@ -121,7 +125,10 @@ export default function Login() {
 
           <div className="text-center text-sm">
             <span className="text-gray-400">Don't have an account? </span>
-            <Link to="/signup" className="font-medium text-indigo-400 hover:text-indigo-500">
+            <Link
+              to="/signup"
+              className="font-medium text-indigo-400 hover:text-indigo-500"
+            >
               Sign up
             </Link>
           </div>

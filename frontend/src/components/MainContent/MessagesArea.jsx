@@ -1,11 +1,15 @@
-import React, { useContext, useEffect, useRef, useState } from 'react';
-import { GlobalContext } from '../../context/index.jsx';
-import VideoCallInterface from '../Modals/VideoCallInterface';
+import React, { useContext, useEffect, useRef, useState } from "react";
+import { GlobalContext } from "../../context/index.jsx";
+import VideoCallInterface from "../Modals/VideoCallInterface";
 
 export default function MessagesArea({ messages }) {
   const { currentChannel, currentServer, servers } = useContext(GlobalContext);
-  const currentServerData = servers.find((server) => server.id === currentServer);
-  const isVoiceChannel = currentServerData?.voiceChannels.includes(currentChannel);
+  const currentServerData = servers.find(
+    (server) => server.id === currentServer
+  );
+  const isVoiceChannel = currentServerData?.channels
+    ?.filter((channel) => channel.channel_type === "voice")
+    .includes(currentChannel);
 
   const messagesEndRef = useRef(null);
   const containerRef = useRef(null);
@@ -26,8 +30,8 @@ export default function MessagesArea({ messages }) {
   }, [messages, shouldAutoScroll]);
 
   return (
-    <div 
-      id="messages-container" 
+    <div
+      id="messages-container"
       className="flex-1 overflow-y-auto space-y-4"
       ref={containerRef}
       onScroll={handleScroll}
@@ -38,12 +42,12 @@ export default function MessagesArea({ messages }) {
         </div>
       ) : null}
       <div className="px-4 pt-4">
-        {messages?.map((message, index) => (
+        {messages?.map((message) => (
           <Message
-            key={index}
-            user={message?.user}
-            text={message?.text}
-            timestamp={message?.timestamp}
+            key={message?.id}
+            user={message?.sender?.full_name}
+            text={message?.content}
+            timestamp={message?.created_at}
           />
         ))}
         <div ref={messagesEndRef} />
