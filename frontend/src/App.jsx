@@ -11,7 +11,7 @@ import ChannelSidebar from "./components/Sidebar/ChannelSidebar";
 import MainContent from "./components/MainContent/MainContent";
 import Login from "./components/Auth/Login";
 import Signup from "./components/Auth/Signup";
-import { GlobalContext } from "./context";
+import { GlobalContext } from "./context/index.jsx";
 
 export default function App() {
   const MainApp = () => (

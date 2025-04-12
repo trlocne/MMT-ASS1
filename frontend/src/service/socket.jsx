@@ -1,4 +1,5 @@
-const SOCKET_URL = "ws://127.0.0.1:8000/ws/";
+// const SOCKET_URL = "ws://127.0.0.1:8000/ws/";
+const SOCKET_URL = "wss://192.168.1.11:8000/ws/";
 
 class SocketService {
   constructor() {
@@ -36,6 +37,12 @@ class SocketService {
       console.log("Text WebSocket disconnected");
       if (this.textCallbacks.onClose) this.textCallbacks.onClose();
     };
+  }
+
+  sendImage(imageBlob) {
+    if (this.textSocket && this.textSocket.readyState === WebSocket.OPEN) {
+      this.textSocket.send(imageBlob);
+    }
   }
 
   connectSignaling(channelId, peerId, token = null) {

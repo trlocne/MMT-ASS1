@@ -1,16 +1,6 @@
-import React, { useContext, useEffect, useRef, useState } from "react";
-import { GlobalContext } from "../../context/index.jsx";
-import VideoCallInterface from "../Modals/VideoCallInterface";
+import React, { useEffect, useRef, useState } from "react";
 
 export default function MessagesArea({ messages }) {
-  const { currentChannel, currentServer, servers } = useContext(GlobalContext);
-  const currentServerData = servers.find(
-    (server) => server.id === currentServer
-  );
-  const isVoiceChannel = currentServerData?.channels
-    ?.filter((channel) => channel.channel_type === "voice")
-    .includes(currentChannel);
-
   const messagesEndRef = useRef(null);
   const containerRef = useRef(null);
   const [shouldAutoScroll, setShouldAutoScroll] = useState(true);
@@ -36,11 +26,6 @@ export default function MessagesArea({ messages }) {
       ref={containerRef}
       onScroll={handleScroll}
     >
-      {isVoiceChannel ? (
-        <div className="sticky top-0 z-10">
-          <VideoCallInterface />
-        </div>
-      ) : null}
       <div className="px-4 pt-4">
         {messages?.map((message) => (
           <Message

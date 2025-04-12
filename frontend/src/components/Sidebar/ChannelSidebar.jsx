@@ -27,7 +27,6 @@ export default function ChannelSidebar() {
     addChannelToServer,
     setIsAuthenticated,
     fullName,
-    setFullName,
   } = useContext(GlobalContext);
 
   const navigate = useNavigate();
@@ -150,7 +149,7 @@ export default function ChannelSidebar() {
             </div>
           </div>
           <div className="flex space-x-1">
-            <button
+            {/* <button
               className={`${
                 isMicrophoneOn
                   ? "text-gray-400 hover:text-white"
@@ -161,9 +160,9 @@ export default function ChannelSidebar() {
               <FontAwesomeIcon
                 icon={isMicrophoneOn ? faMicrophone : faMicrophoneSlash}
               />
-            </button>
+            </button> */}
 
-            <button
+            {/* <button
               className={`${
                 isHeadphonesOn
                   ? "text-gray-400 hover:text-white"
@@ -174,7 +173,7 @@ export default function ChannelSidebar() {
               <FontAwesomeIcon
                 icon={isHeadphonesOn ? faHeadphones : faVolumeMute}
               />
-            </button>
+            </button> */}
 
             <div className="relative">
               <button

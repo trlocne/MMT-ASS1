@@ -3,6 +3,7 @@ import { GlobalContext } from "../../context/index.jsx";
 import MessagesArea from "./MessagesArea";
 import MessageInput from "./MessageInput";
 import { api } from "../../service/api";
+import VideoCallInterface from "../Modals/VideoCallInterface";
 
 import {
   faSearch,
@@ -16,12 +17,14 @@ import { v4 as uuidv4 } from "uuid";
 export default function MainContent() {
   const { currentChannel, fullName, username } = useContext(GlobalContext);
   const [currentChannelData, setCurrentChannelData] = useState(null);
-
+  const [isVoiceChannel, setIsVoiceChannel] = useState(false);
   // when click on channel, fetch messages, and websocket to chat
   const fetchChannelData = async () => {
     try {
       const res = await api.get(`/channels/${currentChannel}/messages`);
       console.log(res.data);
+      const isVoiceChannel = res.data.channel_type === "voice";
+      setIsVoiceChannel(isVoiceChannel);
       setCurrentChannelData(res.data);
     } catch (error) {
       console.error("Error fetching channel data:", error);
@@ -37,10 +40,18 @@ export default function MainContent() {
     socketService.connectTextChat(currentChannel, token);
     // register callback
     socketService.on("onMessage", (message) => {
-      setCurrentChannelData((prev) => ({
-        ...prev,
-        messages: [...(prev?.messages || []), message],
-      }));
+      if (message instanceof Blob) {
+        const url = URL.createObjectURL(message);
+        setCurrentChannelData((prev) => ({
+          ...prev,
+          messages: [...(prev?.messages || []), { type: "image", url }],
+        }));
+      } else {
+        setCurrentChannelData((prev) => ({
+          ...prev,
+          messages: [...(prev?.messages || []), message],
+        }));
+      }
     });
 
     socketService.on("onError", () => {
@@ -86,8 +97,26 @@ export default function MainContent() {
           </button>
         </div>
       </div>
-      <MessagesArea messages={currentChannelData?.messages} />
-      <MessageInput onSendMessage={handleSendMessage} />
+      {/* Content */}
+      {isVoiceChannel ? (
+        <div className="flex-1 flex flex-row">
+          {/* Bên trái: VideoCallInterface */}
+          <div className="w-3/4 flex-shrink-0">
+            <VideoCallInterface />
+          </div>
+
+          {/* Bên phải: MessagesArea và MessageInput */}
+          <div className="w-1/4 flex flex-col">
+            <MessagesArea messages={currentChannelData?.messages} />
+            <MessageInput onSendMessage={handleSendMessage} />
+          </div>
+        </div>
+      ) : (
+        <div className="flex-1 flex flex-col">
+          <MessagesArea messages={currentChannelData?.messages} />
+          <MessageInput onSendMessage={handleSendMessage} />
+        </div>
+      )}
     </div>
   );
 }

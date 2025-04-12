@@ -8,9 +8,7 @@ export default function GlobalState({ children }) {
   const [isAuthenticated, setIsAuthenticated] = useState(
     localStorage.getItem("token") ? true : false
   );
-  const [isVideoOn, setIsVideoOn] = useState(false);
-  const [isMicrophoneOn, setIsMicrophoneOn] = useState(true);
-  const [isHeadphonesOn, setIsHeadphonesOn] = useState(true);
+
   const [username, setUserName] = useState(
     localStorage.getItem("username") ? localStorage.getItem("username") : ""
   );
@@ -103,24 +101,14 @@ export default function GlobalState({ children }) {
       localStorage.setItem("fullName", userInfo.data.full_name);
       return { success: true, message: "Login successful" };
     } catch (error) {
-      return { success: false, message: "Invalid credentials" };
+      console.log(error.response.data.detail);
+      return { success: false, message: error.response.data.detail };
     }
   };
-
-  const participants = [
-    { name: "Duy Phương Lộc", avatar: "https://via.placeholder.com/150" },
-    { name: "John Doe", avatar: "https://via.placeholder.com/150" },
-    { name: "Alice", avatar: "https://via.placeholder.com/150" },
-    { name: "Bob", avatar: "https://via.placeholder.com/150" },
-  ];
 
   const contextValue = {
     currentChannel,
     setCurrentChannel,
-    isMicrophoneOn,
-    setIsMicrophoneOn,
-    isHeadphonesOn,
-    setIsHeadphonesOn,
     username,
     setUserName,
     currentServer,
@@ -132,9 +120,6 @@ export default function GlobalState({ children }) {
     setIsAuthenticated,
     registerUser,
     loginUser,
-    isVideoOn,
-    setIsVideoOn,
-    participants,
     fullName,
     setFullName,
   };
