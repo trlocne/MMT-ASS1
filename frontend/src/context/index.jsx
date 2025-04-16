@@ -5,9 +5,14 @@ export const GlobalContext = createContext();
 
 export default function GlobalState({ children }) {
   const [currentChannel, setCurrentChannel] = useState(null);
+  const [isGuestMode, setIsGuestMode] = useState(
+    localStorage.getItem("isGuest") ? true : false
+  );
   const [isAuthenticated, setIsAuthenticated] = useState(
     localStorage.getItem("token") ? true : false
   );
+
+  const [isShared, setIsShared] = useState(false);
 
   const [username, setUserName] = useState(
     localStorage.getItem("username") ? localStorage.getItem("username") : ""
@@ -34,24 +39,47 @@ export default function GlobalState({ children }) {
     }
   }, [isAuthenticated]);
 
-  const addChannelToServer = (serverId, channelName, channelType) => {
-    setServers((prevServers) =>
-      prevServers.map((server) =>
-        server.id === serverId
-          ? {
-              ...server,
-              [`${channelType}Channels`]: [
-                ...(server[`${channelType}Channels`] || []),
-                channelName,
-              ],
-            }
-          : server
-      )
-    );
-    // setMessages((prevMessages) => ({
-    //   ...prevMessages,
-    //   [channelName]: [],
-    // }));
+  const addChannelToServer = async (serverId, channelName, channelType) => {
+    // call api
+    try {
+      const res = await api.post("/channels/create", {
+        name: channelName,
+        server_id: serverId,
+        channel_type: channelType,
+      });
+
+      setServers((prevServers) =>
+        prevServers.map((server) =>
+          server.id === serverId
+            ? {
+                ...server,
+                channels: [...server.channels, res],
+              }
+            : server
+        )
+      );
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  const loginGuest = async (username) => {
+    try {
+      const res = await api.post("/auth/login-guest", {
+        username: username,
+      });
+      console.log(res.data);
+      localStorage.setItem("username", username);
+      localStorage.setItem("isGuest", true);
+      setFullName(username);
+      setIsAuthenticated(true);
+      localStorage.setItem("token", res.data.access_token);
+      localStorage.setItem("fullName", username);
+      return { success: true, message: "Login successful" };
+    } catch (error) {
+      console.log(error);
+      return { success: false, message: error.response.data.detail };
+    }
   };
 
   const registerUser = async (userData) => {
@@ -122,6 +150,11 @@ export default function GlobalState({ children }) {
     loginUser,
     fullName,
     setFullName,
+    loginGuest,
+    isGuestMode,
+    setIsGuestMode,
+    isShared,
+    setIsShared,
   };
 
   return (

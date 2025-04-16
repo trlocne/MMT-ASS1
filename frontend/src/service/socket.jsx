@@ -1,5 +1,7 @@
-// const SOCKET_URL = "ws://127.0.0.1:8000/ws/";
-const SOCKET_URL = "wss://192.168.1.11:8000/ws/";
+// const SOCKET_URL = "wss://127.0.0.1:8000/ws/";
+// const SOCKET_URL = "wss://10.88.54.73:8000/ws/";
+const SOCKET_URL =
+  import.meta.env.VITE_SOCKET_URL || "wss://127.0.0.1:8000/ws/";
 
 class SocketService {
   constructor() {

@@ -5,10 +5,6 @@ import {
   faPlus,
   faVolumeUp,
   faHashtag,
-  faMicrophone,
-  faMicrophoneSlash,
-  faHeadphones,
-  faVolumeMute,
   faCog,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -18,10 +14,6 @@ export default function ChannelSidebar() {
   const {
     currentChannel,
     setCurrentChannel,
-    isMicrophoneOn,
-    setIsMicrophoneOn,
-    isHeadphonesOn,
-    setIsHeadphonesOn,
     currentServer,
     servers,
     addChannelToServer,
@@ -34,12 +26,15 @@ export default function ChannelSidebar() {
 
   const [isOnline, setIsOnline] = useState(true);
   const handleLogout = async () => {
-    await api.put("/auth/status", {
-      status: "offline",
-    });
+    if (localStorage.getItem("isGuest") !== "true") {
+      await api.put("/auth/status", {
+        status: "offline",
+      });
+    }
     setDropdownOpen(false);
     setIsAuthenticated(false);
     localStorage.removeItem("token");
+    localStorage.removeItem("isGuest");
     localStorage.removeItem("username");
     localStorage.removeItem("fullName");
     navigate("/login");
