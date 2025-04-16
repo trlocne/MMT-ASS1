@@ -11,6 +11,7 @@ import ChannelSidebar from "./components/Sidebar/ChannelSidebar";
 import MainContent from "./components/MainContent/MainContent";
 import Login from "./components/Auth/Login";
 import Signup from "./components/Auth/Signup";
+import MemberList from "./components/MainContent/Member.jsx";
 import { GlobalContext } from "./context/index.jsx";
 
 export default function App() {
@@ -19,10 +20,11 @@ export default function App() {
       <ServerSidebar />
       <ChannelSidebar />
       <MainContent />
+      {isMemberListVisible ? <MemberList /> : null}
     </div>
   );
 
-  const { isAuthenticated } = useContext(GlobalContext);
+  const {isMemberListVisible, isAuthenticated} = useContext(GlobalContext);
 
   return (
     <Router>
