@@ -1,163 +1,172 @@
-import React, { createContext, useState, useEffect } from 'react';
-
+import React, { createContext, useState, useEffect } from "react";
+import { api } from "../service/api";
 // Tạo Context
 export const GlobalContext = createContext();
 
 export default function GlobalState({ children }) {
-  const [currentChannel, setCurrentChannel] = useState('chat');
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [isVideoOn, setIsVideoOn] = useState(false);
-  const [registeredUsers, setRegisteredUsers] = useState(() => {
-    const savedUsers = localStorage.getItem('registeredUsers');
-    return savedUsers ? JSON.parse(savedUsers) : [];
-  });
-  const [messages, setMessages] = useState(() => {
-    const savedMessages = localStorage.getItem('messages');
-    return savedMessages
-      ? JSON.parse(savedMessages)
-      : {
-          general: [],
-          memes: [],
-          help: [],
-          lobby: [],
-          strategy: [],
-          announcements: [],
-          events: [],
-        };
-  });
+  const [currentChannel, setCurrentChannel] = useState(null);
+  const [isGuestMode, setIsGuestMode] = useState(
+    localStorage.getItem("isGuest") ? true : false
+  );
+  const [isAuthenticated, setIsAuthenticated] = useState(
+    localStorage.getItem("token") ? true : false
+  );
 
-  const [isMicrophoneOn, setIsMicrophoneOn] = useState(true);
-  const [isHeadphonesOn, setIsHeadphonesOn] = useState(true);
-  const [username, setUserName] = useState('abc123');
+  const [isShared, setIsShared] = useState(false);
 
+  const [username, setUserName] = useState(
+    localStorage.getItem("username") ? localStorage.getItem("username") : ""
+  );
+  const [fullName, setFullName] = useState(
+    localStorage.getItem("fullName") ? localStorage.getItem("fullName") : ""
+  );
+  const [servers, setServers] = useState([]);
+  const [currentServer, setCurrentServer] = useState(0);
+  const [isMemberListVisible, setIsMemberListVisible] = useState(false);
 
-  const [servers, setServers] = useState([
-    {
-      id: 1,
-      name: 'Discord',
-      color: '#4f46e5',
-      textChannels: ['general', 'memes', 'help'],
-      voiceChannels: ['General', 'Gaming', 'Music'],
-    },
-    {
-      id: 2,
-      name: 'Gaming',
-      color: '#22c55e',
-      textChannels: ['lobby', 'strategy'],
-      voiceChannels: ['Voice Chat'],
-    },
-    {
-      id: 3,
-      name: 'Community',
-      color: '#a855f7',
-      textChannels: ['announcements', 'events'],
-      voiceChannels: ['Community Voice'],
-    },
-  ]);
-
-  const [currentServer, setCurrentServer] = useState(1);
-
-  const addServer = (serverName, color) => {
-    const newServer = {
-      id: servers.length + 1,
-      name: serverName,
-      color,
-      textChannels: [],
-      voiceChannels: [],
-    };
-    setServers((prev) => [...prev, newServer]);
-  };
-
-  const addChannelToServer = (serverId, channelName, channelType) => {
-    setServers((prevServers) =>
-      prevServers.map((server) =>
-        server.id === serverId
-          ? {
-              ...server,
-              [`${channelType}Channels`]: [
-                ...(server[`${channelType}Channels`] || []),
-                channelName,
-              ],
-            }
-          : server
-      )
-    );
-
-    setMessages((prevMessages) => ({
-      ...prevMessages,
-      [channelName]: [],
-    }));
-  };
-
-  useEffect(() => {
-    localStorage.setItem('messages', JSON.stringify(messages));
-  }, [messages]);
-
-  useEffect(() => {
-    localStorage.setItem('registeredUsers', JSON.stringify(registeredUsers));
-  }, [registeredUsers]);
-
-  const registerUser = (userData) => {
-    const userExists = registeredUsers.some(user => user.email === userData.email);
-    if (userExists) {
-      return { success: false, message: 'Email already registered' };
+  const fetchServers = async () => {
+    try {
+      const res = await api.get("/servers");
+      console.log(res.data);
+      setServers(res.data);
+    } catch (error) {
+      console.error("Error fetching servers:", error);
     }
-    setRegisteredUsers(prev => [...prev, userData]);
-    return { success: true, message: 'Registration successful' };
   };
 
-  const loginUser = async (email, password) => {
-    const user = registeredUsers.find(u => u.email === email && u.password === password);
-    if (user) {
+  useEffect(() => {
+    if (isAuthenticated) {
+      fetchServers().then(() => {
+        // Set first server as default when servers are loaded
+        if (servers.length > 0) {
+          setCurrentServer(servers[0].id);
+          // Set first channel as default
+          if (servers[0].channels && servers[0].channels.length > 0) {
+            setCurrentChannel(servers[0].channels[0].id);
+          }
+        }
+      });
+    }
+  }, [isAuthenticated]);
+
+  // Effect to handle default channel selection when server changes
+  useEffect(() => {
+    const selectedServer = servers.find(server => server.id === currentServer);
+    if (selectedServer && selectedServer.channels && selectedServer.channels.length > 0) {
+      setCurrentChannel(selectedServer.channels[0].id);
+    }
+  }, [currentServer, servers]);
+
+  const addChannelToServer = async (serverId, channelName, channelType) => {
+    try {
+      const res = await api.post("/channels/create", {
+        name: channelName,
+        server_id: serverId,
+        channel_type: channelType,
+      });
+
+      // Fetch updated server data to ensure synchronization
+      const updatedServers = await api.get("/servers");
+      setServers(updatedServers.data);
+    } catch (error) {
+      console.log(error);
+    }
+  };
+
+  const loginGuest = async (username) => {
+    try {
+      const res = await api.post("/auth/login-guest", {
+        username: username,
+      });
+      console.log(res.data);
+      localStorage.setItem("username", username);
+      localStorage.setItem("isGuest", true);
+      setFullName(username);
       setIsAuthenticated(true);
-      setUserName(user.username);
-      return { success: true, message: 'Login successful' };
+      localStorage.setItem("token", res.data.access_token);
+      localStorage.setItem("fullName", username);
+      return { success: true, message: "Login successful" };
+    } catch (error) {
+      console.log(error);
+      return { success: false, message: error.response.data.detail };
     }
-    return { success: false, message: 'Invalid credentials' };
   };
 
-  const participants = [
-    { name: "Duy Phương Lộc", avatar: "https://via.placeholder.com/150" },
-    { name: "John Doe", avatar: "https://via.placeholder.com/150" },
-    { name: "Alice", avatar: "https://via.placeholder.com/150" },
-    { name: "Bob", avatar: "https://via.placeholder.com/150" },
-  ];
+  const registerUser = async (userData) => {
+    try {
+      // covert userdata to json
+      const payload = {
+        username: userData.email,
+        full_name: userData.fullname,
+        password: userData.password,
+      };
 
-  const handleSendMessage = (message) => {
-    setMessages((prevMessages) => ({
-      ...prevMessages,
-      [currentChannel]: [
-        ...(prevMessages[currentChannel] || []),
-        message,
-      ],
-    }));
+      const res = await api.post("/auth/register", payload, {
+        headers: {
+          "Content-Type": "application/json",
+        },
+      });
+      console.log(res.data);
+      return { success: true, message: "Registration successful" };
+    } catch (error) {
+      console.log(error.response.data.detail);
+      return { success: false, message: error.response.data.detail };
+    }
+  };
+
+  const loginUser = async (username, password) => {
+    try {
+      const data = new FormData();
+      data.append("username", username);
+      data.append("password", password);
+      const res = await api.post("/auth/login", data, {
+        headers: {
+          "Content-Type": "multipart/form-data",
+        },
+      });
+      console.log(res.data);
+      // save token to local storage
+      localStorage.setItem("token", res.data.access_token);
+      // call api get user info
+      const userInfo = await api.get("/auth/me");
+      console.log(userInfo.data);
+
+      setIsAuthenticated(true);
+      setUserName(userInfo.data.username);
+      localStorage.setItem("username", userInfo.data.username);
+      setFullName(userInfo.data.full_name);
+      localStorage.setItem("token", res.data.access_token);
+      localStorage.setItem("fullName", userInfo.data.full_name);
+      return { success: true, message: "Login successful" };
+    } catch (error) {
+      console.log(error.response.data.detail);
+      return { success: false, message: error.response.data.detail };
+    }
   };
 
   const contextValue = {
     currentChannel,
     setCurrentChannel,
-    messages,
-    setMessages,
-    isMicrophoneOn,
-    setIsMicrophoneOn,
-    isHeadphonesOn,
-    setIsHeadphonesOn,
-    handleSendMessage,
-    username, 
+    username,
     setUserName,
-    servers,
-    setServers,
     currentServer,
     setCurrentServer,
-    addServer,
+    servers,
+    setServers,
     addChannelToServer,
     isAuthenticated,
     setIsAuthenticated,
     registerUser,
     loginUser,
-    isVideoOn,
-    setIsVideoOn,
-    participants
+    fullName,
+    setFullName,
+    loginGuest,
+    isGuestMode,
+    setIsGuestMode,
+    isShared,
+    setIsShared,
+    isMemberListVisible,
+    setIsMemberListVisible
   };
 
   return (

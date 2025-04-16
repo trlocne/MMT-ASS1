@@ -7,7 +7,7 @@ export default function Signup() {
   const { registerUser } = useContext(GlobalContext);
 
   const [formData, setFormData] = useState({
-    username: '',
+    fullname: '',
     email: '',
     password: '',
     confirmPassword: ''
@@ -30,10 +30,10 @@ export default function Signup() {
 
   const validateForm = () => {
     const newErrors = {};
-    if (!formData.username) {
-      newErrors.username = 'Username is required';
-    } else if (formData.username.length < 3) {
-      newErrors.username = 'Username must be at least 3 characters';
+    if (!formData.fullname) {
+      newErrors.fullname = 'Fullname is required';
+    } else if (formData.fullname.length < 3) {
+      newErrors.fullname = 'Fullname must be at least 3 characters';
     }
 
     if (!formData.email) {
@@ -44,8 +44,8 @@ export default function Signup() {
 
     if (!formData.password) {
       newErrors.password = 'Password is required';
-    } else if (formData.password.length < 6) {
-      newErrors.password = 'Password must be at least 6 characters';
+    } else if (formData.password.length < 3) {
+      newErrors.password = 'Password must be at least 3 characters';
     }
 
     if (!formData.confirmPassword) {
@@ -57,12 +57,12 @@ export default function Signup() {
     return newErrors;
   };
 
-  const handleSubmit = (e) => {
+  const handleSubmit = async (e) => {
     e.preventDefault();
     const newErrors = validateForm();
 
     if (Object.keys(newErrors).length === 0) {
-      const result = registerUser(formData);
+      const result = await registerUser(formData);
       if (result.success) {
         navigate('/login');
       } else {
@@ -84,13 +84,13 @@ export default function Signup() {
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
           <div className="rounded-md shadow-sm space-y-4">
             <InputField
-              id="username"
-              name="username"
+              id="fullname"
+              name="fullname"
               type="text"
-              value={formData.username}
+              value={formData.fullname}
               onChange={handleChange}
-              error={errors.username}
-              placeholder="Username"
+              error={errors.fullname}
+              placeholder="Fullname"
             />
             <InputField
               id="email"
@@ -124,6 +124,7 @@ export default function Signup() {
           <div>
             <button
               type="submit"
+              onClick={handleSubmit}
               className="group relative w-full flex justify-center py-2 px-4 border border-transparent text-sm font-medium rounded-md text-white bg-indigo-600 hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500"
             >
               Sign up
