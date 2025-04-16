@@ -106,7 +106,7 @@ export default function GlobalState({ children }) {
     return { success: true, message: 'Registration successful' };
   };
 
-  const loginUser = (email, password) => {
+  const loginUser = async (email, password) => {
     const user = registeredUsers.find(u => u.email === email && u.password === password);
     if (user) {
       setIsAuthenticated(true);
@@ -127,7 +127,7 @@ export default function GlobalState({ children }) {
     setMessages((prevMessages) => ({
       ...prevMessages,
       [currentChannel]: [
-        ...(prevMessages[currentChannel] || []), // Đảm bảo luôn là mảng
+        ...(prevMessages[currentChannel] || []),
         message,
       ],
     }));

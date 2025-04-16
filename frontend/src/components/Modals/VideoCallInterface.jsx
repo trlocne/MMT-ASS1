@@ -25,8 +25,6 @@ export default function VideoCallInterface() {
     participants
   } = useContext(GlobalContext);
 
-  
-
   return (
     <div className="flex flex-col bg-black text-white">
       {isVideoOn ? 
