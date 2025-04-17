@@ -9,13 +9,13 @@ import {
   faSearch,
   faInbox,
   faHashtag,
-  faQuestionCircle,
+  faUsers,
 } from "@fortawesome/free-solid-svg-icons";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import socketService from "../../service/socket";
 import { v4 as uuidv4 } from "uuid";
 export default function MainContent() {
-  const { currentChannel, fullName, username, isGuestMode } =
+  const { currentChannel, fullName, username, isGuestMode, setIsMemberListVisible } =
     useContext(GlobalContext);
   const [currentChannelData, setCurrentChannelData] = useState(null);
   const [isVoiceChannel, setIsVoiceChannel] = useState(false);
@@ -93,8 +93,11 @@ export default function MainContent() {
           <button className="text-gray-400 hover:text-white">
             <FontAwesomeIcon icon={faInbox} />
           </button>
-          <button className="text-gray-400 hover:text-white">
-            <FontAwesomeIcon icon={faQuestionCircle} />
+          <button 
+            className="text-gray-400 hover:text-white"
+            onClick={() => setIsMemberListVisible(prev => !prev)}
+          >
+            <FontAwesomeIcon icon={faUsers} />
           </button>
         </div>
       </div>

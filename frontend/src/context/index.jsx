@@ -22,6 +22,7 @@ export default function GlobalState({ children }) {
   );
   const [servers, setServers] = useState([]);
   const [currentServer, setCurrentServer] = useState(0);
+  const [isMemberListVisible, setIsMemberListVisible] = useState(false);
 
   const fetchServers = async () => {
     try {
@@ -35,12 +36,28 @@ export default function GlobalState({ children }) {
 
   useEffect(() => {
     if (isAuthenticated) {
-      fetchServers();
+      fetchServers().then(() => {
+        // Set first server as default when servers are loaded
+        if (servers.length > 0) {
+          setCurrentServer(servers[0].id);
+          // Set first channel as default
+          if (servers[0].channels && servers[0].channels.length > 0) {
+            setCurrentChannel(servers[0].channels[0].id);
+          }
+        }
+      });
     }
   }, [isAuthenticated]);
 
+  // Effect to handle default channel selection when server changes
+  useEffect(() => {
+    const selectedServer = servers.find(server => server.id === currentServer);
+    if (selectedServer && selectedServer.channels && selectedServer.channels.length > 0) {
+      setCurrentChannel(selectedServer.channels[0].id);
+    }
+  }, [currentServer, servers]);
+
   const addChannelToServer = async (serverId, channelName, channelType) => {
-    // call api
     try {
       const res = await api.post("/channels/create", {
         name: channelName,
@@ -48,16 +65,9 @@ export default function GlobalState({ children }) {
         channel_type: channelType,
       });
 
-      setServers((prevServers) =>
-        prevServers.map((server) =>
-          server.id === serverId
-            ? {
-                ...server,
-                channels: [...server.channels, res],
-              }
-            : server
-        )
-      );
+      // Fetch updated server data to ensure synchronization
+      const updatedServers = await api.get("/servers");
+      setServers(updatedServers.data);
     } catch (error) {
       console.log(error);
     }
@@ -155,6 +165,8 @@ export default function GlobalState({ children }) {
     setIsGuestMode,
     isShared,
     setIsShared,
+    isMemberListVisible,
+    setIsMemberListVisible
   };
 
   return (
