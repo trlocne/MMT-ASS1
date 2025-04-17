@@ -12,6 +12,7 @@ import {
   faVolumeMute,
   faPhone,
   faThumbtack,
+  faStopCircle,
 } from "@fortawesome/free-solid-svg-icons";
 import socketService from "../../service/socket";
 import { v4 as uuidv4 } from "uuid";
@@ -29,6 +30,9 @@ export default function VideoCallInterface() {
   const remoteVideoRefs = useRef({});
   const [isSignalingReady, setIsSignalingReady] = useState(false);
   const [pinnedVideo, setPinnedVideo] = useState(null); // null hoặc 'local' hoặc peerId
+  const [screenStream, setScreenStream] = useState(null);
+  const [isScreenSharing, setIsScreenSharing] = useState(false);
+  const screenVideoRef = useRef(null);
 
   const iceServers = [
     { urls: "stun:stun.l.google.com:19302" },
@@ -364,6 +368,104 @@ export default function VideoCallInterface() {
     }
   }, [pinnedVideo, localStream, remoteStreams]);
 
+  const handleScreenShare = async () => {
+    // Chỉ cho phép chia sẻ màn hình khi đã bật video
+    if (!isVideoOn || !localStream) {
+      alert("Bạn cần bật video call trước khi chia sẻ màn hình");
+      return;
+    }
+
+    try {
+      if (!isScreenSharing) {
+        // Bắt đầu chia sẻ màn hình
+        console.log("Starting screen sharing...");
+        const stream = await navigator.mediaDevices.getDisplayMedia({
+          video: { cursor: "always" },
+          audio: false,
+        });
+
+        console.log("Screen stream acquired:", stream);
+        console.log(
+          "Screen tracks:",
+          stream.getTracks().map((t) => t.kind)
+        );
+
+        // Xử lý khi người dùng dừng chia sẻ màn hình từ trình duyệt
+        stream.getVideoTracks()[0].onended = () => {
+          console.log("Screen sharing ended by browser UI");
+          stopScreenSharing();
+        };
+
+        // Thiết lập stream cho video ref
+        if (screenVideoRef.current) {
+          console.log("Setting screen video ref srcObject");
+          screenVideoRef.current.srcObject = stream;
+        } else {
+          console.warn("Screen video ref is null");
+        }
+
+        // Đảm bảo UI cập nhật
+        setScreenStream(stream);
+        setIsScreenSharing(true);
+
+        // Gửi stream chia sẻ màn hình như một track bổ sung đến tất cả peers
+        Object.values(peersRef.current).forEach((peer) => {
+          try {
+            stream.getTracks().forEach((track) => {
+              console.log(`Adding screen track to peer: ${track.kind}`);
+              peer.addTrack(track, stream);
+            });
+          } catch (err) {
+            console.error("Lỗi khi thêm track chia sẻ màn hình:", err);
+          }
+        });
+      } else {
+        // Dừng chia sẻ màn hình
+        stopScreenSharing();
+      }
+    } catch (err) {
+      console.error("Lỗi khi chia sẻ màn hình:", err);
+      alert(
+        "Không thể chia sẻ màn hình. Vui lòng kiểm tra quyền hoặc thử lại."
+      );
+    }
+  };
+
+  const stopScreenSharing = () => {
+    if (screenStream) {
+      // Dừng các track của stream chia sẻ màn hình
+      screenStream.getTracks().forEach((track) => {
+        track.stop();
+
+        // Xóa track chia sẻ màn hình khỏi tất cả các peer
+        Object.values(peersRef.current).forEach((peer) => {
+          try {
+            const senders = peer.getSenders();
+            const sender = senders.find(
+              (s) => s.track && s.track.id === track.id
+            );
+            if (sender) {
+              peer.removeTrack(sender);
+            }
+          } catch (err) {
+            console.error("Lỗi khi xóa track chia sẻ màn hình:", err);
+          }
+        });
+      });
+
+      setScreenStream(null);
+      setIsScreenSharing(false);
+    }
+  };
+
+  // Thêm useEffect để cập nhật srcObject cho screenVideoRef khi screenStream thay đổi
+  useEffect(() => {
+    if (screenStream && screenVideoRef.current) {
+      console.log("Updating screen video from useEffect");
+      screenVideoRef.current.srcObject = screenStream;
+    }
+  }, [screenStream]);
+
   return (
     <div className="flex flex-col bg-black text-white h-full relative">
       {isVideoOn ? (
@@ -376,15 +478,37 @@ export default function VideoCallInterface() {
                   {/* Video được pin chiếm toàn bộ màn hình */}
                   {pinnedVideo === "local" ? (
                     <div className="relative text-center bg-gray-800 h-full w-full">
+                      {/* Video camera luôn hiển thị */}
                       <video
                         ref={localVideoRef}
                         autoPlay
                         playsInline
                         controls={false}
                         muted={true}
-                        className="w-full h-full object-cover"
+                        className={`w-full h-full object-cover ${
+                          isScreenSharing
+                            ? "absolute top-0 right-0 w-1/4 h-1/4 z-10 m-4 rounded-lg border-2 border-white"
+                            : ""
+                        }`}
                       />
-                      <div className="absolute top-4 right-4 z-10">
+
+                      {/* Video chia sẻ màn hình hiển thị khi đang chia sẻ */}
+                      {isScreenSharing && screenStream && (
+                        <div className="absolute inset-0 w-full h-full">
+                          <video
+                            ref={screenVideoRef}
+                            autoPlay
+                            playsInline
+                            controls={false}
+                            className="w-full h-full object-contain bg-black"
+                          />
+                          <div className="absolute bottom-16 left-1/2 transform -translate-x-1/2 text-md bg-green-700 bg-opacity-70 px-4 py-2 rounded-lg z-20">
+                            Đang chia sẻ màn hình
+                          </div>
+                        </div>
+                      )}
+
+                      <div className="absolute top-4 right-4 z-30">
                         <button
                           onClick={() => handlePinVideo("local")}
                           className="bg-gray-800 bg-opacity-70 rounded-full p-3 text-white hover:bg-gray-700"
@@ -392,8 +516,9 @@ export default function VideoCallInterface() {
                           <FontAwesomeIcon icon={faThumbtack} size="lg" />
                         </button>
                       </div>
-                      <p className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-md bg-black bg-opacity-50 px-4 py-2 rounded-lg">
+                      <p className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-md bg-black bg-opacity-50 px-4 py-2 rounded-lg z-30">
                         You (Fullscreen)
+                        {isScreenSharing ? " - Sharing Screen" : ""}
                       </p>
                     </div>
                   ) : remoteStreams[pinnedVideo] ? (
@@ -467,15 +592,37 @@ export default function VideoCallInterface() {
               <div className={gridClass}>
                 {localStream && (
                   <div className="relative text-center bg-gray-800 rounded-xl overflow-hidden shadow-lg aspect-video">
+                    {/* Video camera luôn hiển thị */}
                     <video
                       ref={localVideoRef}
                       autoPlay
                       playsInline
                       controls={false}
                       muted={true}
-                      className="w-full h-full object-cover"
+                      className={`w-full h-full object-cover ${
+                        isScreenSharing
+                          ? "absolute top-0 right-0 w-1/3 h-1/3 z-10 m-2 rounded-lg border-2 border-white"
+                          : ""
+                      }`}
                     />
-                    <div className="absolute top-2 right-2 z-10">
+
+                    {/* Video chia sẻ màn hình hiển thị khi đang chia sẻ */}
+                    {isScreenSharing && screenStream && (
+                      <div className="absolute inset-0 w-full h-full">
+                        <video
+                          ref={screenVideoRef}
+                          autoPlay
+                          playsInline
+                          controls={false}
+                          className="w-full h-full object-contain bg-black"
+                        />
+                        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 text-xs bg-green-700 bg-opacity-70 px-2 py-1 rounded-lg z-10">
+                          Đang chia sẻ màn hình
+                        </div>
+                      </div>
+                    )}
+
+                    <div className="absolute top-2 right-2 z-20">
                       <button
                         onClick={() => handlePinVideo("local")}
                         className="bg-gray-800 bg-opacity-70 rounded-full p-2 text-white hover:bg-gray-700"
@@ -483,8 +630,8 @@ export default function VideoCallInterface() {
                         <FontAwesomeIcon icon={faThumbtack} />
                       </button>
                     </div>
-                    <p className="absolute bottom-0 left-1/2 transform -translate-x-1/2 text-sm bg-black bg-opacity-50 px-2 py-1 rounded-lg">
-                      You
+                    <p className="absolute bottom-0 left-1/2 transform -translate-x-1/2 text-sm bg-black bg-opacity-50 px-2 py-1 rounded-lg z-20">
+                      You{isScreenSharing ? " - Sharing Screen" : ""}
                     </p>
                   </div>
                 )}
@@ -547,7 +694,13 @@ export default function VideoCallInterface() {
           inactiveIcon={faVolumeMute}
         />
         <StaticButton icon={faVideo} />
-        <StaticButton icon={faDesktop} />
+        <ControlButton
+          isActive={!isScreenSharing}
+          onClick={handleScreenShare}
+          activeIcon={faDesktop}
+          inactiveIcon={faStopCircle}
+          disabled={!isVideoOn}
+        />
         <StaticButton icon={faEllipsisH} />
         <ControlButton
           isActive={!isVideoOn}
@@ -560,12 +713,21 @@ export default function VideoCallInterface() {
   );
 }
 
-function ControlButton({ isActive, onClick, activeIcon, inactiveIcon }) {
+function ControlButton({
+  isActive,
+  onClick,
+  activeIcon,
+  inactiveIcon,
+  disabled = false,
+}) {
   return (
     <button
       onClick={onClick}
+      disabled={disabled}
       className={`w-12 h-12 rounded-full flex items-center justify-center text-white transition ${
-        isActive
+        disabled
+          ? "bg-gray-600 opacity-50 cursor-not-allowed"
+          : isActive
           ? "bg-gray-700 hover:bg-gray-600"
           : "bg-red-600 hover:bg-red-700"
       }`}
