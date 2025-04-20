@@ -19,8 +19,8 @@ export default function ChannelSidebar() {
     addChannelToServer,
     setIsAuthenticated,
     fullName,
+    host,
   } = useContext(GlobalContext);
-
   const navigate = useNavigate();
   const [dropdownOpen, setDropdownOpen] = useState(false);
 
@@ -37,9 +37,15 @@ export default function ChannelSidebar() {
     localStorage.removeItem("isGuest");
     localStorage.removeItem("username");
     localStorage.removeItem("fullName");
+    localStorage.removeItem("user_id");
     navigate("/login");
   };
-  const handleChangeMode = () => {
+  const handleChangeMode = async () => {
+    if (localStorage.getItem("isGuest") !== "true") {
+      await api.put("/auth/status", {
+        status: isOnline ? "invisible" : "online",
+      });
+    }
     setIsOnline(!isOnline);
     setDropdownOpen(false);
   };
@@ -66,12 +72,14 @@ export default function ChannelSidebar() {
 
         <div className="text-xs p-[10px] text-gray-400 px-2 mb-1 flex justify-between items-center">
           <p className="font-semibold">TEXT CHANNELS</p>
-          <button
-            className="text-gray-400 hover:text-white"
-            onClick={() => handleAddChannel("text")}
-          >
-            <FontAwesomeIcon icon={faPlus} />
-          </button>
+          {host.current === Number(localStorage.getItem("user_id")) && (
+            <button
+              className="text-gray-400 hover:text-white"
+              onClick={() => handleAddChannel("text")}
+            >
+              <FontAwesomeIcon icon={faPlus} />
+            </button>
+          )}
         </div>
         <div className="space-y-1">
           {currentServerData?.channels
@@ -97,12 +105,14 @@ export default function ChannelSidebar() {
 
         <div className="text-xs p-[10px] text-gray-400 px-2 mt-4 mb-1 flex justify-between items-center">
           <p className="font-semibold">VOICE CHANNELS</p>
-          <button
-            className="text-gray-400 hover:text-white"
-            onClick={() => handleAddChannel("voice")}
-          >
-            <FontAwesomeIcon icon={faPlus} />
-          </button>
+          {host.current === Number(localStorage.getItem("user_id")) && (
+            <button
+              className="text-gray-400 hover:text-white"
+              onClick={() => handleAddChannel("voice")}
+            >
+              <FontAwesomeIcon icon={faPlus} />
+            </button>
+          )}
         </div>
         <div className="space-y-1">
           {currentServerData?.channels
@@ -144,32 +154,6 @@ export default function ChannelSidebar() {
             </div>
           </div>
           <div className="flex space-x-1">
-            {/* <button
-              className={`${
-                isMicrophoneOn
-                  ? "text-gray-400 hover:text-white"
-                  : "text-red-500"
-              }`}
-              onClick={() => setIsMicrophoneOn((prev) => !prev)}
-            >
-              <FontAwesomeIcon
-                icon={isMicrophoneOn ? faMicrophone : faMicrophoneSlash}
-              />
-            </button> */}
-
-            {/* <button
-              className={`${
-                isHeadphonesOn
-                  ? "text-gray-400 hover:text-white"
-                  : "text-red-500"
-              }`}
-              onClick={() => setIsHeadphonesOn((prev) => !prev)}
-            >
-              <FontAwesomeIcon
-                icon={isHeadphonesOn ? faHeadphones : faVolumeMute}
-              />
-            </button> */}
-
             <div className="relative">
               <button
                 className="text-gray-400 hover:text-white"
@@ -185,12 +169,14 @@ export default function ChannelSidebar() {
                   >
                     Logout
                   </button>
-                  <button
-                    onClick={handleChangeMode}
-                    className="block w-full text-left px-4 py-2 text-sm text-gray-400 hover:bg-gray-600 hover:text-white"
-                  >
-                    {!isOnline ? "Online" : "Invisible"}
-                  </button>
+                  {localStorage.getItem("isGuest") !== "true" && (
+                    <button
+                      onClick={handleChangeMode}
+                      className="block w-full text-left px-4 py-2 text-sm text-gray-400 hover:bg-gray-600 hover:text-white"
+                    >
+                      {!isOnline ? "Online" : "Invisible"}
+                    </button>
+                  )}
                 </div>
               )}
             </div>

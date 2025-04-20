@@ -1,4 +1,4 @@
-import React, { createContext, useState, useEffect } from "react";
+import React, { createContext, useState, useEffect, useRef } from "react";
 import { api } from "../service/api";
 // Tạo Context
 export const GlobalContext = createContext();
@@ -8,6 +8,8 @@ export default function GlobalState({ children }) {
   const [isGuestMode, setIsGuestMode] = useState(
     localStorage.getItem("isGuest") ? true : false
   );
+  // server_id: host_user_id
+  const host = useRef(null);
   const [isAuthenticated, setIsAuthenticated] = useState(
     localStorage.getItem("token") ? true : false
   );
@@ -51,8 +53,14 @@ export default function GlobalState({ children }) {
 
   // Effect to handle default channel selection when server changes
   useEffect(() => {
-    const selectedServer = servers.find(server => server.id === currentServer);
-    if (selectedServer && selectedServer.channels && selectedServer.channels.length > 0) {
+    const selectedServer = servers.find(
+      (server) => server.id === currentServer
+    );
+    if (
+      selectedServer &&
+      selectedServer.channels &&
+      selectedServer.channels.length > 0
+    ) {
       setCurrentChannel(selectedServer.channels[0].id);
     }
   }, [currentServer, servers]);
@@ -130,10 +138,10 @@ export default function GlobalState({ children }) {
       // call api get user info
       const userInfo = await api.get("/auth/me");
       console.log(userInfo.data);
-
       setIsAuthenticated(true);
       setUserName(userInfo.data.username);
       localStorage.setItem("username", userInfo.data.username);
+      localStorage.setItem("user_id", userInfo.data.id);
       setFullName(userInfo.data.full_name);
       localStorage.setItem("token", res.data.access_token);
       localStorage.setItem("fullName", userInfo.data.full_name);
@@ -166,7 +174,8 @@ export default function GlobalState({ children }) {
     isShared,
     setIsShared,
     isMemberListVisible,
-    setIsMemberListVisible
+    setIsMemberListVisible,
+    host,
   };
 
   return (

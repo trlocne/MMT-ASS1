@@ -24,7 +24,7 @@ export default function App() {
     </div>
   );
 
-  const {isMemberListVisible, isAuthenticated} = useContext(GlobalContext);
+  const { isMemberListVisible, isAuthenticated } = useContext(GlobalContext);
 
   return (
     <Router>

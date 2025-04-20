@@ -13,26 +13,29 @@ import {
   faPhone,
   faThumbtack,
   faStopCircle,
+  faLock,
 } from "@fortawesome/free-solid-svg-icons";
 import socketService from "../../service/socket";
 import { v4 as uuidv4 } from "uuid";
 
 export default function VideoCallInterface() {
-  const { currentChannel } = useContext(GlobalContext);
+  const { currentChannel, host } = useContext(GlobalContext);
   const [isVideoOn, setIsVideoOn] = useState(false);
-  const [isMicrophoneOn, setIsMicrophoneOn] = useState(true);
-  const [isHeadphonesOn, setIsHeadphonesOn] = useState(true);
+  // const [isMicrophoneOn, setIsMicrophoneOn] = useState(true);
+  // const [isHeadphonesOn, setIsHeadphonesOn] = useState(true);
   const [peerId] = useState(uuidv4());
-  const peersRef = useRef({}); // Thay vì useState
+  const peersRef = useRef({});
   const [localStream, setLocalStream] = useState(null);
   const [remoteStreams, setRemoteStreams] = useState({});
   const localVideoRef = useRef(null);
   const remoteVideoRefs = useRef({});
   const [isSignalingReady, setIsSignalingReady] = useState(false);
-  const [pinnedVideo, setPinnedVideo] = useState(null); // null hoặc 'local' hoặc peerId
-  const [screenStream, setScreenStream] = useState(null);
+  const [pinnedVideo, setPinnedVideo] = useState(null);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
-  const screenVideoRef = useRef(null);
+  const [peersName, setPeersName] = useState({});
+
+  const isHost =
+    host && host.current === Number(localStorage.getItem("user_id"));
 
   const iceServers = [
     { urls: "stun:stun.l.google.com:19302" },
@@ -41,83 +44,115 @@ export default function VideoCallInterface() {
       urls: "turn:openrelay.metered.ca:80",
       username: "openrelayproject",
       credential: "openrelayproject",
-    }, // TURN miễn phí
+    },
   ];
 
-  // Thiết lập kết nối signaling khi có stream
   useEffect(() => {
     if (!currentChannel || !isVideoOn || !localStream) return;
 
-    console.log(
-      "Setting up signaling connection with local stream available..."
-    );
-
+    console.log("Setting up signaling connection...");
     const token = localStorage.getItem("token");
     socketService.connectSignaling(currentChannel, peerId, token);
-
-    console.log("Socket service connected with peerId:", peerId);
 
     socketService.on(
       "onMessage",
       async (message) => {
-        console.log(`Received message:`, message);
         const { action, peer_id, target_id, sdp, candidate } = message;
 
         if (action === "new_peer" && peer_id !== peerId) {
-          console.log(`New peer joined: ${peer_id}, creating connection`);
+          setPeersName((prev) => ({
+            ...prev,
+            [peer_id]: message.fullname,
+          }));
+
+          console.log(`New peer joined: ${peer_id}`);
           createPeerConnection(peer_id);
           const offer = await peersRef.current[peer_id].createOffer();
           await peersRef.current[peer_id].setLocalDescription(offer);
-          const res = { action: "offer", target_id: peer_id, sdp: offer };
-          console.log("Sending offer to new peer: ", res);
-          socketService.sendSignalingMessage(res);
+          socketService.sendSignalingMessage({
+            action: "offer",
+            target_id: peer_id,
+            fullname: localStorage.getItem("fullName"),
+            sdp: offer,
+          });
         } else if (action === "offer" && target_id === peerId) {
           console.log(`Received offer from: ${peer_id}`);
+          console.log(message);
+          setPeersName((prev) => ({
+            ...prev,
+            [peer_id]: message.fullname,
+          }));
           if (!peersRef.current[peer_id]) createPeerConnection(peer_id);
           await peersRef.current[peer_id].setRemoteDescription(
             new RTCSessionDescription(sdp)
           );
           const answer = await peersRef.current[peer_id].createAnswer();
           await peersRef.current[peer_id].setLocalDescription(answer);
-          const res = { action: "answer", target_id: peer_id, sdp: answer };
-          console.log("Sending answer: ", res);
-          socketService.sendSignalingMessage(res);
+          socketService.sendSignalingMessage({
+            action: "answer",
+            target_id: peer_id,
+            sdp: answer,
+          });
         } else if (action === "answer" && target_id === peerId) {
-          try {
-            console.log(`Received answer from: ${peer_id}`);
-            const peerConnection = peersRef.current[peer_id];
-            if (peerConnection) {
-              await peerConnection.setRemoteDescription(
-                new RTCSessionDescription(sdp)
-              );
-              console.log("SetRemoteDescription Done!");
-            } else {
-              console.error(`No peer connection found for ${peer_id}`);
-            }
-          } catch (error) {
-            console.error("Error setting remote description: ", error);
+          console.log(`Received answer from: ${peer_id}`);
+          await peersRef.current[peer_id].setRemoteDescription(
+            new RTCSessionDescription(sdp)
+          );
+        } else if (action === "end_call" && target_id === peerId) {
+          console.log("Host đã kết thúc cuộc gọi cho tất cả mọi người");
+          alert("Host đã kết thúc cuộc gọi");
+
+          if (isSignalingReady) {
+            socketService.disconnect("signaling");
+            setIsSignalingReady(false);
           }
-        } else if (action === "ice_candidate" && target_id === peerId) {
-          console.log("Adding ICE candidate from ", peer_id, candidate);
-          const peerConnection = peersRef.current[peer_id];
-          if (peerConnection) {
-            try {
-              await peerConnection.addIceCandidate(
-                new RTCIceCandidate(candidate)
-              );
-              console.log(`ICE candidate added successfully for ${peer_id}`);
-            } catch (err) {
-              console.error(`Error adding ICE candidate for ${peer_id}:`, err);
+          if (localStream) {
+            localStream.getTracks().forEach((track) => track.stop());
+            setLocalStream(null);
+          }
+          Object.values(peersRef.current).forEach((peer) => peer.close());
+          peersRef.current = {};
+          setRemoteStreams({});
+          setPeersName({});
+          setIsVideoOn(false);
+          setIsScreenSharing(false);
+        } else if (action === "screen_state_change" && target_id === peerId) {
+          console.log(
+            `Received screen state change from ${peer_id}: ${message.isScreenSharing}`
+          );
+
+          setRemoteStreams((prev) => {
+            if (prev[peer_id]) {
+              const updatedStream = prev[peer_id].clone();
+              updatedStream.isScreenSharing = message.isScreenSharing;
+
+              return {
+                ...prev,
+                [peer_id]: updatedStream,
+              };
             }
+            return prev;
+          });
+        } else if (action === "ice_candidate" && target_id === peerId) {
+          console.log("Adding ICE candidate from ", peer_id);
+          if (peersRef.current[peer_id]) {
+            await peersRef.current[peer_id].addIceCandidate(
+              new RTCIceCandidate(candidate)
+            );
           } else {
             console.error(
-              `Cannot add ICE candidate: No peer connection for ${peer_id}`
+              `Cannot add ICE candidate: no connection to peer ${peer_id}`
             );
           }
         } else if (action === "peer_left" && peer_id in peersRef.current) {
           console.log(`Peer left: ${peer_id}`);
           peersRef.current[peer_id].close();
           delete peersRef.current[peer_id];
+          setPeersName((prev) => {
+            const newPeers = { ...prev };
+            delete newPeers[peer_id];
+            return newPeers;
+          });
           setRemoteStreams((prev) => {
             const newStreams = { ...prev };
             delete newStreams[peer_id];
@@ -128,9 +163,6 @@ export default function VideoCallInterface() {
       "signaling"
     );
 
-    console.log(
-      `Joining voice channel: ${currentChannel} with peerId: ${peerId}`
-    );
     socketService.sendSignalingMessage({
       action: "join_voice",
       peer_id: peerId,
@@ -140,22 +172,29 @@ export default function VideoCallInterface() {
     setIsSignalingReady(true);
 
     return () => {
-      console.log("Disconnecting from signaling server");
       socketService.disconnect("signaling");
       setIsSignalingReady(false);
     };
-  }, [currentChannel, isVideoOn, peerId, localStream]);
+  }, [currentChannel, isVideoOn, localStream, peerId]);
+
+  useEffect(() => {
+    if (!isSignalingReady) return;
+
+    Object.keys(peersRef.current).forEach((remotePeerId) => {
+      socketService.sendSignalingMessage({
+        action: "screen_state_change",
+        peer_id: peerId,
+        target_id: remotePeerId,
+        isScreenSharing: isScreenSharing,
+      });
+    });
+  }, [isScreenSharing, isSignalingReady, peerId]);
 
   const createPeerConnection = async (peerId) => {
-    console.log(`Creating peer connection for ${peerId} with config:`, {
-      iceServers,
-    });
-
+    console.log(`Creating peer connection for ${peerId}`);
     const peerConnection = new RTCPeerConnection({ iceServers });
 
-    peersRef.current[peerId] = peerConnection; // Lưu vào ref
-
-    console.log(`Peer connection created: ${peerId}`, peersRef.current);
+    peersRef.current[peerId] = peerConnection;
 
     if (localStream) {
       console.log(
@@ -173,25 +212,33 @@ export default function VideoCallInterface() {
 
     peerConnection.ontrack = (event) => {
       const stream = event.streams[0];
+      console.log(stream.getVideoTracks());
       console.log(`Received track from ${peerId}: ${event.track.kind}`);
-      // Gán stream vào ref để video hiển thị (và phát tiếng)
-      setRemoteStreams((prev) => ({ ...prev, [peerId]: stream }));
-      if (remoteVideoRefs.current[peerId]) {
-        remoteVideoRefs.current[peerId].srcObject = stream;
+
+      // Không cần phân biệt screen/camera stream nữa vì mỗi người dùng chỉ có một luồng video
+      const streamKey = peerId;
+
+      // Lưu stream vào remoteStreams
+      setRemoteStreams((prev) => ({
+        ...prev,
+        [streamKey]: stream,
+      }));
+
+      // Gán stream vào video ref tương ứng
+      if (remoteVideoRefs.current[streamKey]) {
+        remoteVideoRefs.current[streamKey].srcObject = stream;
+      } else {
+        console.warn(`No video ref found for ${streamKey}`);
       }
     };
 
     peerConnection.onicecandidate = (event) => {
       if (event.candidate) {
-        console.log(`Generated ICE candidate for ${peerId}:`, event.candidate);
         socketService.sendSignalingMessage({
           action: "ice_candidate",
           target_id: peerId,
           candidate: event.candidate,
         });
-        console.log(`ICE candidate sent to ${peerId}`);
-      } else {
-        console.log(`ICE gathering completed for ${peerId}`);
       }
     };
 
@@ -213,101 +260,70 @@ export default function VideoCallInterface() {
       );
     };
 
-    peerConnection.onicecandidateerror = (event) => {
-      console.error(`ICE candidate error for ${peerId}:`, event);
-    };
-
     return peerConnection;
   };
 
   const handleVideoCall = async () => {
     if (!isVideoOn) {
-      // Bật video call
       console.log("Starting video call...");
-
-      if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
-        console.error("WebRTC không được hỗ trợ hoặc yêu cầu HTTPS/localhost.");
-        alert(
-          "Trình duyệt không hỗ trợ video call hoặc cần chạy trên HTTPS/localhost."
-        );
-        return;
-      }
-
       try {
-        console.log("Getting user media...");
         const stream = await navigator.mediaDevices.getUserMedia({
           audio: true,
           video: true,
         });
-        console.log("User media acquired:", stream);
         setLocalStream(stream);
-
-        // Chỉ bật video call sau khi đã có stream
         setIsVideoOn(true);
       } catch (err) {
-        console.error("Lỗi khi lấy media:", err);
-        alert("Không thể truy cập camera/microphone. Vui lòng kiểm tra quyền.");
+        console.error("Error accessing media:", err);
+        alert("Cannot access camera/microphone. Please check permissions.");
       }
     } else {
-      // Tắt video call
       console.log("Stopping video call...");
+      if (isHost && isSignalingReady) {
+        console.log("Host đang kết thúc cuộc gọi cho tất cả người tham gia");
+        Object.keys(peersRef.current).forEach((remotePeerId) => {
+          socketService.sendSignalingMessage({
+            action: "end_call",
+            target_id: remotePeerId,
+          });
+        });
+      }
 
-      // Ngắt kết nối signaling
       if (isSignalingReady) {
-        console.log("Disconnecting from signaling server");
         socketService.disconnect("signaling");
         setIsSignalingReady(false);
       }
-
-      // Dừng stream và đóng các kết nối
       if (localStream) {
-        localStream.getTracks().forEach((track) => {
-          console.log(`Stopping track: ${track.kind}`);
-          track.stop();
-        });
+        localStream.getTracks().forEach((track) => track.stop());
         setLocalStream(null);
       }
-
-      // Đóng tất cả peer connections
-      Object.entries(peersRef.current).forEach(([id, peer]) => {
-        console.log(`Closing peer connection: ${id}`);
-        peer.close();
-      });
+      Object.values(peersRef.current).forEach((peer) => peer.close());
       peersRef.current = {};
       setRemoteStreams({});
-
-      // Tắt video call
       setIsVideoOn(false);
+      setIsScreenSharing(false);
     }
   };
 
-  // Hiển thị local stream
   useEffect(() => {
     if (localStream && localVideoRef.current) {
       localVideoRef.current.srcObject = localStream;
     }
   }, [localStream]);
 
-  // Hiển thị remote streams và đảm bảo không reset khi re-render
   useEffect(() => {
-    Object.entries(remoteStreams).forEach(([peerId, stream]) => {
-      const videoEl = remoteVideoRefs.current[peerId];
+    Object.entries(remoteStreams).forEach(([streamKey, stream]) => {
+      const videoEl = remoteVideoRefs.current[streamKey];
       if (videoEl && stream && videoEl.srcObject !== stream) {
         videoEl.srcObject = stream;
       }
     });
   }, [remoteStreams]);
 
-  // Đảm bảo các tham chiếu video được giữ nguyên ngay cả khi ghim video
   useEffect(() => {
-    // Xử lý cho video local được ghim
     if (pinnedVideo === "local" && localStream && localVideoRef.current) {
-      if (localVideoRef.current.srcObject !== localStream) {
-        localVideoRef.current.srcObject = localStream;
-      }
+      localVideoRef.current.srcObject = localStream;
     }
-
-    // Xử lý cho video remote được ghim
     if (pinnedVideo && pinnedVideo !== "local" && remoteStreams[pinnedVideo]) {
       const pinnedVideoEl = remoteVideoRefs.current[pinnedVideo];
       if (
@@ -320,194 +336,308 @@ export default function VideoCallInterface() {
   }, [pinnedVideo, remoteStreams, localStream]);
 
   const handlePinVideo = (id) => {
-    // Kiểm tra xác nhận video remote tồn tại trước khi pin
     if (id !== "local" && !remoteStreams[id]) {
       console.error(`Cannot pin video: stream for ${id} not found`);
       return;
     }
 
-    // Nếu click vào video đã được pin, bỏ pin
+    // Nếu đang pin video này rồi, hủy pin
     if (pinnedVideo === id) {
       setPinnedVideo(null);
 
-      // Đảm bảo các video được hiển thị lại đúng sau khi unpin
-      setTimeout(() => {
-        // Đặt lại video local
+      // Đảm bảo tất cả video được cập nhật ngay lập tức, không bị delay
+      requestAnimationFrame(() => {
         if (localStream && localVideoRef.current) {
           localVideoRef.current.srcObject = localStream;
         }
 
-        // Đặt lại tất cả video remote
-        Object.entries(remoteStreams).forEach(([peerId, stream]) => {
-          const videoEl = remoteVideoRefs.current[peerId];
+        Object.entries(remoteStreams).forEach(([streamKey, stream]) => {
+          const videoEl = remoteVideoRefs.current[streamKey];
           if (videoEl && stream) {
             videoEl.srcObject = stream;
           }
         });
-      }, 50); // Đợi một chút để DOM cập nhật
+      });
     } else {
+      // Cập nhật trạng thái pin và đồng thời cập nhật video stream ngay lập tức
       setPinnedVideo(id);
-    }
-  };
 
-  // Thêm useEffect để đảm bảo video hiển thị lại đúng khi chuyển từ chế độ pinned sang grid
-  useEffect(() => {
-    if (!pinnedVideo) {
-      // Trường hợp vừa bỏ ghim
-      // Cập nhật lại tất cả video để đảm bảo hiển thị
-      if (localStream && localVideoRef.current) {
-        localVideoRef.current.srcObject = localStream;
-      }
-
-      Object.entries(remoteStreams).forEach(([peerId, stream]) => {
-        const videoEl = remoteVideoRefs.current[peerId];
-        if (videoEl && stream) {
-          videoEl.srcObject = stream;
+      // Đảm bảo video được pin được cập nhật ngay lập tức
+      requestAnimationFrame(() => {
+        if (id === "local" && localStream && localVideoRef.current) {
+          localVideoRef.current.srcObject = localStream;
+        } else if (remoteStreams[id]) {
+          const videoEl = remoteVideoRefs.current[id];
+          if (videoEl) {
+            videoEl.srcObject = remoteStreams[id];
+          }
         }
       });
     }
-  }, [pinnedVideo, localStream, remoteStreams]);
+  };
 
   const handleScreenShare = async () => {
-    // Chỉ cho phép chia sẻ màn hình khi đã bật video
     if (!isVideoOn || !localStream) {
-      alert("Bạn cần bật video call trước khi chia sẻ màn hình");
+      alert("You need to enable video call before sharing screen");
+      return;
+    }
+
+    if (!isHost) {
+      alert("Only the host can share the screen");
       return;
     }
 
     try {
       if (!isScreenSharing) {
-        // Bắt đầu chia sẻ màn hình
         console.log("Starting screen sharing...");
-        const stream = await navigator.mediaDevices.getDisplayMedia({
-          video: { cursor: "always" },
+
+        if (localVideoRef.current) {
+          const canvas = document.createElement("canvas");
+          canvas.width = localVideoRef.current.videoWidth || 640;
+          canvas.height = localVideoRef.current.videoHeight || 480;
+          const ctx = canvas.getContext("2d");
+
+          if (localVideoRef.current.videoWidth) {
+            ctx.drawImage(
+              localVideoRef.current,
+              0,
+              0,
+              canvas.width,
+              canvas.height
+            );
+          }
+
+          ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.font = "20px Arial";
+          ctx.fillStyle = "white";
+          ctx.textAlign = "center";
+          ctx.fillText(
+            "Starting screen share...",
+            canvas.width / 2,
+            canvas.height / 2
+          );
+
+          const stream = canvas.captureStream();
+          localVideoRef.current.srcObject = stream;
+        }
+
+        const screenStream = await navigator.mediaDevices.getDisplayMedia({
+          video: {
+            cursor: "always",
+            displaySurface: "monitor",
+            logicalSurface: true,
+            width: { ideal: 1920, max: 3840 },
+            height: { ideal: 1080, max: 2160 },
+            frameRate: { ideal: 30, max: 60 },
+          },
           audio: false,
         });
 
-        console.log("Screen stream acquired:", stream);
-        console.log(
-          "Screen tracks:",
-          stream.getTracks().map((t) => t.kind)
-        );
+        localStream.getVideoTracks().forEach((track) => {
+          console.log("Stopping camera track:", track.id);
+          track.stop();
+        });
 
-        // Xử lý khi người dùng dừng chia sẻ màn hình từ trình duyệt
-        stream.getVideoTracks()[0].onended = () => {
-          console.log("Screen sharing ended by browser UI");
-          stopScreenSharing();
-        };
-
-        // Thiết lập stream cho video ref
-        if (screenVideoRef.current) {
-          console.log("Setting screen video ref srcObject");
-          screenVideoRef.current.srcObject = stream;
-        } else {
-          console.warn("Screen video ref is null");
+        const screenTrack = screenStream.getVideoTracks()[0];
+        if (!screenTrack) {
+          throw new Error("Không thể lấy được video từ màn hình");
         }
 
-        // Đảm bảo UI cập nhật
-        setScreenStream(stream);
-        setIsScreenSharing(true);
-
-        // Gửi stream chia sẻ màn hình như một track bổ sung đến tất cả peers
-        Object.values(peersRef.current).forEach((peer) => {
-          try {
-            stream.getTracks().forEach((track) => {
-              console.log(`Adding screen track to peer: ${track.kind}`);
-              peer.addTrack(track, stream);
-            });
-          } catch (err) {
-            console.error("Lỗi khi thêm track chia sẻ màn hình:", err);
-          }
+        console.log("Screen track acquired:", {
+          id: screenTrack.id,
+          label: screenTrack.label,
+          enabled: screenTrack.enabled,
         });
+
+        screenTrack.onended = async () => {
+          console.log("Screen sharing ended by browser UI");
+          await stopScreenSharing();
+        };
+
+        const newStream = new MediaStream();
+        localStream
+          .getAudioTracks()
+          .forEach((track) => newStream.addTrack(track));
+        newStream.addTrack(screenTrack);
+
+        console.log("Created new stream with screen track");
+
+        setLocalStream(newStream);
+
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = newStream;
+        }
+
+        await Promise.all(
+          Object.entries(peersRef.current).map(async ([remotePeerId, peer]) => {
+            const senders = peer.getSenders();
+            const videoSender = senders.find(
+              (sender) => sender.track && sender.track.kind === "video"
+            );
+
+            try {
+              if (videoSender) {
+                console.log(
+                  `Replacing video track for peer ${remotePeerId} with screen track`
+                );
+                await videoSender.replaceTrack(screenTrack);
+                console.log(
+                  `Track replacement successful for peer ${remotePeerId}`
+                );
+              } else {
+                console.log(
+                  `No video sender found for peer ${remotePeerId}, adding screen track`
+                );
+                peer.addTrack(screenTrack, newStream);
+              }
+              return true;
+            } catch (err) {
+              console.error(
+                `Error updating track for peer ${remotePeerId}:`,
+                err
+              );
+              return false;
+            }
+          })
+        );
+
+        setIsScreenSharing(true);
       } else {
-        // Dừng chia sẻ màn hình
-        stopScreenSharing();
+        await stopScreenSharing();
       }
     } catch (err) {
-      console.error("Lỗi khi chia sẻ màn hình:", err);
-      alert(
-        "Không thể chia sẻ màn hình. Vui lòng kiểm tra quyền hoặc thử lại."
-      );
+      console.error("Error sharing screen:", err);
+      alert("Cannot share screen. Please check permissions or try again.");
+      try {
+        await stopScreenSharing();
+      } catch (e) {
+        console.error("Error restoring camera after failed screen share:", e);
+      }
     }
   };
 
-  const stopScreenSharing = () => {
-    if (screenStream) {
-      // Dừng các track của stream chia sẻ màn hình
-      screenStream.getTracks().forEach((track) => {
-        track.stop();
+  const stopScreenSharing = async () => {
+    if (isScreenSharing) {
+      console.log("Stopping screen sharing, restoring camera");
 
-        // Xóa track chia sẻ màn hình khỏi tất cả các peer
-        Object.values(peersRef.current).forEach((peer) => {
-          try {
-            const senders = peer.getSenders();
-            const sender = senders.find(
-              (s) => s.track && s.track.id === track.id
+      try {
+        if (localVideoRef.current) {
+          const canvas = document.createElement("canvas");
+          canvas.width = localVideoRef.current.videoWidth || 640;
+          canvas.height = localVideoRef.current.videoHeight || 480;
+          const ctx = canvas.getContext("2d");
+
+          if (localVideoRef.current.videoWidth) {
+            ctx.drawImage(
+              localVideoRef.current,
+              0,
+              0,
+              canvas.width,
+              canvas.height
             );
-            if (sender) {
-              peer.removeTrack(sender);
-            }
-          } catch (err) {
-            console.error("Lỗi khi xóa track chia sẻ màn hình:", err);
           }
-        });
-      });
 
-      setScreenStream(null);
-      setIsScreenSharing(false);
+          ctx.fillStyle = "rgba(0, 0, 0, 0.5)";
+          ctx.fillRect(0, 0, canvas.width, canvas.height);
+          ctx.font = "20px Arial";
+          ctx.fillStyle = "white";
+          ctx.textAlign = "center";
+          ctx.fillText(
+            "Restoring camera...",
+            canvas.width / 2,
+            canvas.height / 2
+          );
+
+          const stream = canvas.captureStream();
+          localVideoRef.current.srcObject = stream;
+        }
+
+        localStream.getVideoTracks().forEach((track) => {
+          track.stop();
+        });
+
+        console.log("Getting new camera stream");
+        const newCameraStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 1280, max: 1920 },
+            height: { ideal: 720, max: 1080 },
+            frameRate: { ideal: 30, max: 60 },
+          },
+          audio: false,
+        });
+
+        const newVideoTrack = newCameraStream.getVideoTracks()[0];
+        console.log("New camera track:", {
+          id: newVideoTrack.id,
+          enabled: newVideoTrack.enabled,
+          readyState: newVideoTrack.readyState,
+        });
+
+        const newStream = new MediaStream();
+        const audioTracks = localStream.getAudioTracks();
+        audioTracks.forEach((track) => newStream.addTrack(track));
+        newStream.addTrack(newVideoTrack);
+
+        setLocalStream(newStream);
+
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = newStream;
+        }
+
+        await Promise.all(
+          Object.values(peersRef.current).map(async (peer) => {
+            try {
+              const senders = peer.getSenders();
+              const videoSender = senders.find(
+                (sender) => sender.track && sender.track.kind === "video"
+              );
+
+              if (videoSender) {
+                console.log(
+                  "Replacing screen track with new camera track in RTC connection"
+                );
+                await videoSender.replaceTrack(newVideoTrack);
+                console.log("Track replaced successfully");
+                return true;
+              } else {
+                console.log("No video sender found, adding new camera track");
+                peer.addTrack(newVideoTrack, newStream);
+                return true;
+              }
+            } catch (err) {
+              console.error("Error replacing track:", err);
+              return false;
+            }
+          })
+        );
+
+        setIsScreenSharing(false);
+      } catch (err) {
+        console.error("Error restoring camera:", err);
+        alert("Không thể khôi phục camera. Vui lòng tải lại trang và thử lại.");
+      }
     }
   };
-
-  // Thêm useEffect để cập nhật srcObject cho screenVideoRef khi screenStream thay đổi
-  useEffect(() => {
-    if (screenStream && screenVideoRef.current) {
-      console.log("Updating screen video from useEffect");
-      screenVideoRef.current.srcObject = screenStream;
-    }
-  }, [screenStream]);
 
   return (
     <div className="flex flex-col bg-black text-white h-full relative">
       {isVideoOn ? (
         <div className="flex-1 overflow-y-auto p-4 pb-20">
           {(() => {
-            // Nếu có video được pin
             if (pinnedVideo) {
               return (
                 <div className="h-full w-full">
-                  {/* Video được pin chiếm toàn bộ màn hình */}
                   {pinnedVideo === "local" ? (
                     <div className="relative text-center bg-gray-800 h-full w-full">
-                      {/* Video camera luôn hiển thị */}
                       <video
                         ref={localVideoRef}
                         autoPlay
                         playsInline
                         controls={false}
                         muted={true}
-                        className={`w-full h-full object-cover ${
-                          isScreenSharing
-                            ? "absolute top-0 right-0 w-1/4 h-1/4 z-10 m-4 rounded-lg border-2 border-white"
-                            : ""
-                        }`}
+                        className="w-full h-full object-cover"
                       />
-
-                      {/* Video chia sẻ màn hình hiển thị khi đang chia sẻ */}
-                      {isScreenSharing && screenStream && (
-                        <div className="absolute inset-0 w-full h-full">
-                          <video
-                            ref={screenVideoRef}
-                            autoPlay
-                            playsInline
-                            controls={false}
-                            className="w-full h-full object-contain bg-black"
-                          />
-                          <div className="absolute bottom-16 left-1/2 transform -translate-x-1/2 text-md bg-green-700 bg-opacity-70 px-4 py-2 rounded-lg z-20">
-                            Đang chia sẻ màn hình
-                          </div>
-                        </div>
-                      )}
-
                       <div className="absolute top-4 right-4 z-30">
                         <button
                           onClick={() => handlePinVideo("local")}
@@ -518,24 +648,28 @@ export default function VideoCallInterface() {
                       </div>
                       <p className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-md bg-black bg-opacity-50 px-4 py-2 rounded-lg z-30">
                         You (Fullscreen)
-                        {isScreenSharing ? " - Sharing Screen" : ""}
+                        {isScreenSharing && (
+                          <span className="text-green-400">(Screen)</span>
+                        )}
                       </p>
+                      {isScreenSharing === null && (
+                        <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                          <span className="text-white">Processing...</span>
+                        </div>
+                      )}
                     </div>
                   ) : remoteStreams[pinnedVideo] ? (
                     <div className="relative text-center bg-gray-800 h-full w-full">
                       <video
                         ref={(el) => {
-                          // Chỉ cập nhật tham chiếu khi cần thiết
                           if (
                             el &&
                             (!remoteVideoRefs.current[pinnedVideo] ||
                               remoteVideoRefs.current[pinnedVideo] !== el)
                           ) {
                             remoteVideoRefs.current[pinnedVideo] = el;
-                            // Chỉ đặt srcObject nếu chưa được đặt
-                            if (el.srcObject !== remoteStreams[pinnedVideo]) {
-                              el.srcObject = remoteStreams[pinnedVideo];
-                            }
+                            // Đảm bảo cập nhật source ngay lập tức
+                            el.srcObject = remoteStreams[pinnedVideo];
                           }
                         }}
                         autoPlay
@@ -543,7 +677,7 @@ export default function VideoCallInterface() {
                         controls={false}
                         className="w-full h-full object-cover"
                       />
-                      <div className="absolute top-4 right-4 z-10">
+                      <div className="absolute top-4 right-4 z-30">
                         <button
                           onClick={() => handlePinVideo(pinnedVideo)}
                           className="bg-gray-800 bg-opacity-70 rounded-full p-3 text-white hover:bg-gray-700"
@@ -551,21 +685,20 @@ export default function VideoCallInterface() {
                           <FontAwesomeIcon icon={faThumbtack} size="lg" />
                         </button>
                       </div>
-                      <p className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-md bg-black bg-opacity-50 px-4 py-2 rounded-lg">
-                        {pinnedVideo} (Fullscreen)
+                      <p className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-md bg-black bg-opacity-50 px-4 py-2 rounded-lg z-30">
+                        {peersName[pinnedVideo] || pinnedVideo} (Fullscreen)
                       </p>
                     </div>
                   ) : (
-                    // Hiển thị thông báo nếu không tìm thấy stream
                     <div className="flex flex-col items-center justify-center h-full bg-gray-800">
                       <p className="text-xl text-white mb-4">
-                        Không tìm thấy video, vui lòng chọn video khác
+                        Video not found, please select another video
                       </p>
                       <button
                         onClick={() => setPinnedVideo(null)}
                         className="px-6 py-3 bg-blue-600 rounded-lg text-white hover:bg-blue-700 text-lg"
                       >
-                        Quay lại chế độ grid
+                        Back to grid mode
                       </button>
                     </div>
                   )}
@@ -573,56 +706,32 @@ export default function VideoCallInterface() {
               );
             }
 
-            // Nếu không có video nào được pin, hiển thị grid bình thường
             const totalParticipants =
               Object.keys(remoteStreams).length + (localStream ? 1 : 0);
             let gridClass = "grid gap-4 auto-rows-fr";
-
             if (totalParticipants <= 4) {
-              gridClass += " grid-cols-2"; // Grid 2x2
+              gridClass += " grid-cols-2";
             } else if (totalParticipants <= 9) {
-              gridClass += " grid-cols-3"; // Grid 3x3
+              gridClass += " grid-cols-3";
             } else if (totalParticipants <= 16) {
-              gridClass += " grid-cols-4"; // Grid 4x4
+              gridClass += " grid-cols-4";
             } else {
-              gridClass += " grid-cols-5"; // Grid 5x5 cho số lượng lớn hơn
+              gridClass += " grid-cols-5";
             }
 
             return (
               <div className={gridClass}>
                 {localStream && (
                   <div className="relative text-center bg-gray-800 rounded-xl overflow-hidden shadow-lg aspect-video">
-                    {/* Video camera luôn hiển thị */}
                     <video
                       ref={localVideoRef}
                       autoPlay
                       playsInline
                       controls={false}
                       muted={true}
-                      className={`w-full h-full object-cover ${
-                        isScreenSharing
-                          ? "absolute top-0 right-0 w-1/3 h-1/3 z-10 m-2 rounded-lg border-2 border-white"
-                          : ""
-                      }`}
+                      className="w-full h-full object-cover"
                     />
-
-                    {/* Video chia sẻ màn hình hiển thị khi đang chia sẻ */}
-                    {isScreenSharing && screenStream && (
-                      <div className="absolute inset-0 w-full h-full">
-                        <video
-                          ref={screenVideoRef}
-                          autoPlay
-                          playsInline
-                          controls={false}
-                          className="w-full h-full object-contain bg-black"
-                        />
-                        <div className="absolute bottom-8 left-1/2 transform -translate-x-1/2 text-xs bg-green-700 bg-opacity-70 px-2 py-1 rounded-lg z-10">
-                          Đang chia sẻ màn hình
-                        </div>
-                      </div>
-                    )}
-
-                    <div className="absolute top-2 right-2 z-20">
+                    <div className="absolute top-2 right-2 z-10">
                       <button
                         onClick={() => handlePinVideo("local")}
                         className="bg-gray-800 bg-opacity-70 rounded-full p-2 text-white hover:bg-gray-700"
@@ -630,29 +739,34 @@ export default function VideoCallInterface() {
                         <FontAwesomeIcon icon={faThumbtack} />
                       </button>
                     </div>
-                    <p className="absolute bottom-0 left-1/2 transform -translate-x-1/2 text-sm bg-black bg-opacity-50 px-2 py-1 rounded-lg z-20">
-                      You{isScreenSharing ? " - Sharing Screen" : ""}
+                    <p className="absolute bottom-0 left-1/2 transform -translate-x-1/2 text-sm bg-black bg-opacity-50 px-2 py-1 rounded-lg">
+                      You{" "}
+                      {isScreenSharing && (
+                        <span className="text-green-400">(Screen)</span>
+                      )}
                     </p>
+                    {isScreenSharing === null && (
+                      <div className="absolute inset-0 bg-black bg-opacity-50 flex items-center justify-center">
+                        <span className="text-white">Processing...</span>
+                      </div>
+                    )}
                   </div>
                 )}
-                {Object.entries(remoteStreams).map(([peerId, stream]) => (
+                {Object.entries(remoteStreams).map(([streamKey, stream]) => (
                   <div
-                    key={peerId}
+                    key={streamKey}
                     className="relative text-center bg-gray-800 rounded-xl overflow-hidden shadow-lg aspect-video"
                   >
                     <video
                       ref={(el) => {
-                        // Chỉ cập nhật tham chiếu và srcObject khi cần thiết
                         if (
                           el &&
-                          (!remoteVideoRefs.current[peerId] ||
-                            remoteVideoRefs.current[peerId] !== el)
+                          (!remoteVideoRefs.current[streamKey] ||
+                            remoteVideoRefs.current[streamKey] !== el)
                         ) {
-                          remoteVideoRefs.current[peerId] = el;
-                          // Chỉ đặt srcObject nếu chưa được đặt hoặc khác
-                          if (el.srcObject !== stream) {
-                            el.srcObject = stream;
-                          }
+                          remoteVideoRefs.current[streamKey] = el;
+                          // Đảm bảo cập nhật source ngay lập tức
+                          el.srcObject = stream;
                         }
                       }}
                       autoPlay
@@ -662,14 +776,17 @@ export default function VideoCallInterface() {
                     />
                     <div className="absolute top-2 right-2 z-10">
                       <button
-                        onClick={() => handlePinVideo(peerId)}
+                        onClick={() => handlePinVideo(streamKey)}
                         className="bg-gray-800 bg-opacity-70 rounded-full p-2 text-white hover:bg-gray-700"
                       >
                         <FontAwesomeIcon icon={faThumbtack} />
                       </button>
                     </div>
                     <p className="absolute bottom-0 left-1/2 transform -translate-x-1/2 text-sm bg-black bg-opacity-50 px-2 py-1 rounded-lg">
-                      {peerId}
+                      {peersName[streamKey] || streamKey}{" "}
+                      {stream.isScreenSharing && (
+                        <span className="text-green-400">(Screen)</span>
+                      )}
                     </p>
                   </div>
                 ))}
@@ -681,25 +798,26 @@ export default function VideoCallInterface() {
         <div className="flex-1"></div>
       )}
       <div className="absolute bottom-0 left-0 right-0 flex items-center justify-center space-x-4 py-4 bg-[#242b37] bg-opacity-90">
-        <ControlButton
+        {/* <ControlButton
           isActive={isMicrophoneOn}
           onClick={() => setIsMicrophoneOn((prev) => !prev)}
           activeIcon={faMicrophone}
           inactiveIcon={faMicrophoneSlash}
-        />
-        <ControlButton
+        /> */}
+        {/* <ControlButton
           isActive={isHeadphonesOn}
           onClick={() => setIsHeadphonesOn((prev) => !prev)}
           activeIcon={faHeadphones}
           inactiveIcon={faVolumeMute}
-        />
-        <StaticButton icon={faVideo} />
+        /> */}
+        {/* <StaticButton icon={faVideo} /> */}
         <ControlButton
           isActive={!isScreenSharing}
           onClick={handleScreenShare}
           activeIcon={faDesktop}
           inactiveIcon={faStopCircle}
-          disabled={!isVideoOn}
+          disabled={!isVideoOn || !isHost}
+          tooltip={!isHost ? "Only host can share screen" : ""}
         />
         <StaticButton icon={faEllipsisH} />
         <ControlButton
@@ -719,21 +837,35 @@ function ControlButton({
   activeIcon,
   inactiveIcon,
   disabled = false,
+  tooltip = "",
 }) {
   return (
-    <button
-      onClick={onClick}
-      disabled={disabled}
-      className={`w-12 h-12 rounded-full flex items-center justify-center text-white transition ${
-        disabled
-          ? "bg-gray-600 opacity-50 cursor-not-allowed"
-          : isActive
-          ? "bg-gray-700 hover:bg-gray-600"
-          : "bg-red-600 hover:bg-red-700"
-      }`}
-    >
-      <FontAwesomeIcon icon={isActive ? activeIcon : inactiveIcon} />
-    </button>
+    <div className="relative group">
+      <button
+        onClick={onClick}
+        disabled={disabled}
+        className={`w-12 h-12 rounded-full flex items-center justify-center text-white transition ${
+          disabled
+            ? "bg-gray-600 opacity-50 cursor-not-allowed"
+            : isActive
+            ? "bg-gray-700 hover:bg-gray-600"
+            : "bg-red-600 hover:bg-red-700"
+        }`}
+      >
+        {disabled && !isActive ? (
+          <FontAwesomeIcon icon={faLock} />
+        ) : (
+          <FontAwesomeIcon icon={isActive ? activeIcon : inactiveIcon} />
+        )}
+      </button>
+      {tooltip && (
+        <div className="absolute bottom-full left-1/2 transform -translate-x-1/2 mb-2 hidden group-hover:block">
+          <div className="bg-black text-white text-xs rounded py-1 px-2 whitespace-nowrap">
+            {tooltip}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 

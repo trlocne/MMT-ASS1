@@ -6,7 +6,7 @@ import { GlobalContext } from "../../context/index.jsx";
 import { api } from "../../service/api";
 
 const ServerSidebar = () => {
-  const { servers, setServers, currentServer, setCurrentServer } =
+  const { servers, setServers, currentServer, setCurrentServer, host } =
     useContext(GlobalContext);
 
   const [tooltip, setTooltip] = useState({
@@ -55,17 +55,23 @@ const ServerSidebar = () => {
       <div className="w-12 h-12 rounded-full bg-indigo-600 flex items-center justify-center text-white font-bold cursor-pointer hover:rounded-2xl transition-all duration-200">
         <FontAwesomeIcon icon={faDiscord} className="text-2xl" />
       </div>
-      <button
-        className="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center text-white cursor-pointer hover:rounded-2xl transition-all duration-200"
-        onClick={() => setIsModalOpen(true)}
-      >
-        <FontAwesomeIcon icon={faPlus} />
-      </button>
+      {localStorage.getItem("isGuest") !== "true" && (
+        <button
+          className="w-12 h-12 rounded-full bg-gray-700 flex items-center justify-center text-white cursor-pointer hover:rounded-2xl transition-all duration-200"
+          onClick={() => setIsModalOpen(true)}
+        >
+          <FontAwesomeIcon icon={faPlus} />
+        </button>
+      )}
       <div className="border-t border-gray-700 w-8 mx-auto my-2"></div>
       {servers.map((server) => (
         <div
           key={server.id}
-          onClick={() => setCurrentServer(server.id)}
+          onClick={() => {
+            setCurrentServer(server.id);
+            // add host to host ref
+            host.current = server.host_user_id;
+          }}
           onMouseEnter={(e) => handleMouseEnter(e, server.name)}
           onMouseLeave={handleMouseLeave}
           className={`w-12 h-12 rounded-full flex items-center justify-center text-white cursor-pointer hover:rounded-2xl transition-all duration-200`}

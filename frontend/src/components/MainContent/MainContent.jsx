@@ -15,8 +15,13 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import socketService from "../../service/socket";
 import { v4 as uuidv4 } from "uuid";
 export default function MainContent() {
-  const { currentChannel, fullName, username, isGuestMode, setIsMemberListVisible } =
-    useContext(GlobalContext);
+  const {
+    currentChannel,
+    fullName,
+    username,
+    isGuestMode,
+    setIsMemberListVisible,
+  } = useContext(GlobalContext);
   const [currentChannelData, setCurrentChannelData] = useState(null);
   const [isVoiceChannel, setIsVoiceChannel] = useState(false);
   // when click on channel, fetch messages, and websocket to chat
@@ -93,9 +98,9 @@ export default function MainContent() {
           <button className="text-gray-400 hover:text-white">
             <FontAwesomeIcon icon={faInbox} />
           </button>
-          <button 
+          <button
             className="text-gray-400 hover:text-white"
-            onClick={() => setIsMemberListVisible(prev => !prev)}
+            onClick={() => setIsMemberListVisible((prev) => !prev)}
           >
             <FontAwesomeIcon icon={faUsers} />
           </button>
@@ -112,7 +117,7 @@ export default function MainContent() {
           {/* Bên phải: MessagesArea và MessageInput */}
           <div className="w-1/4 flex flex-col">
             <MessagesArea messages={currentChannelData?.messages} />
-            <MessageInput onSendMessage={handleSendMessage} />
+            {!isGuestMode && <MessageInput onSendMessage={handleSendMessage} />}
           </div>
         </div>
       ) : (
