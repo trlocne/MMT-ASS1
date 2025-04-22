@@ -1,9 +1,20 @@
-# MMT-ASS1
-Bài tập lớn 1 Mạng máy tính - HK242
+<a id="readme-top"></a>
 
-# Discord-like Chat Application Frontend
+<!-- PROJECT LOGO -->
+<br />
+<div align="center">
+  <a href="">
+    <img src="hcmut.png" alt="HCMUT Logo" width="160" height="160">
+  </a>
 
-Dự án này là phần frontend dựa trên React cho một ứng dụng trò chuyện giống Discord. Nó cung cấp giao diện hiện đại cho nhắn tin thời gian thực, với các tính năng bao gồm quản lý máy chủ, tổ chức kênh và xác thực người dùng.
+  <h3 align="center">Discord-like Chat Application</h3>
+
+  <p align="center">
+    Dự án này là phần frontend dựa trên React cho một ứng dụng trò chuyện giống Discord dựa trên mô hình hybird giữa Client-Server và Peer-to-Peer. Nó cung cấp giao diện hiện đại cho nhắn tin thời gian thực, với các tính năng bao gồm quản lý máy chủ, tổ chức kênh và xác thực người dùng.
+  </p>
+</div>
+
+
 
 ### Công Nghệ Sử Dụng
 
