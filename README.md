@@ -7,13 +7,9 @@ Dự án này là phần frontend dựa trên React cho một ứng dụng trò 
 
 ### Công Nghệ Sử Dụng
 
-- React 19
-- React Router v7
-- Vite
-- Tailwind CSS
-- Axios để gọi API
-- Xác thực JWT
 - WebRTC
+- RestApi
+- Websocket
 
 ### Tính Năng
 
@@ -22,7 +18,6 @@ Dự án này là phần frontend dựa trên React cho một ứng dụng trò 
 - Quản lý kênh
 - Nhắn tin thời gian thực
 - Xem danh sách thành viên
-- Thiết kế responsive
 - Video Call
 - LiveStream
 
